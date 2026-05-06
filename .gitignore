@@ -6,6 +6,7 @@ todos/
 .worktrees
 .context/
 .claude/worktrees/
+.claude/settings.local.json
 __pycache__/
 *.pyc
 
