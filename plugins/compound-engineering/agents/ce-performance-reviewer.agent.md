@@ -4,7 +4,6 @@ description: Conditional code-review persona, selected when the diff touches dat
 model: inherit
 tools: Read, Grep, Glob, Bash, Write
 color: blue
-
 ---
 
 # Performance Reviewer

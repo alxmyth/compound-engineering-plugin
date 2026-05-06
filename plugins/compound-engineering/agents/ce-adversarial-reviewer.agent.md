@@ -4,7 +4,6 @@ description: Conditional code-review persona, selected when the diff is large (>
 model: inherit
 tools: Read, Grep, Glob, Bash, Write
 color: red
-
 ---
 
 # Adversarial Reviewer

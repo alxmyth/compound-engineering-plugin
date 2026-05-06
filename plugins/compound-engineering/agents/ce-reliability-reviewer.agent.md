@@ -4,7 +4,6 @@ description: Conditional code-review persona, selected when the diff touches err
 model: inherit
 tools: Read, Grep, Glob, Bash, Write
 color: blue
-
 ---
 
 # Reliability Reviewer

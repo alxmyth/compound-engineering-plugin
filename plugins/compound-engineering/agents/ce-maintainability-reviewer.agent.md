@@ -4,7 +4,6 @@ description: Always-on code-review persona. Reviews code for premature abstracti
 model: inherit
 tools: Read, Grep, Glob, Bash, Write
 color: blue
-
 ---
 
 # Maintainability Reviewer
