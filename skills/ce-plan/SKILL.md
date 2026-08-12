@@ -238,7 +238,7 @@ If no relevant Product Contract source exists, planning may proceed from the use
 #### 0.4 Planning Bootstrap (No Requirements Doc or Unclear Input)
 
 If no relevant requirements document exists, or the input needs more structure:
-- Assess whether the request is already clear enough for direct technical planning — if so, continue to Phase 0.5
+- Assess whether the request is already clear enough for direct technical planning — "clear enough" means the bootstrap exit condition below already holds, so confirm the problem frame, scope boundaries, and success signals are known or recorded as assumptions, then continue to Phase 0.5
 - If the ambiguity is mainly product framing, user behavior, or scope definition, recommend `ce-brainstorm` as a suggestion — but always offer to continue planning here as well
 - If the user signals they lack working knowledge of the problem domain itself, recommend `ce-brainstorm` — its blindspot pass maps the territory's decision surface before requirements are extracted — but honor their choice to continue here; Phase 2's unfamiliar-territory scaffolding then applies
 - If the user wants to continue here (or was already explicit about wanting a plan), run the planning bootstrap below
@@ -251,6 +251,8 @@ The planning bootstrap should establish:
 - Blocking questions or assumptions
 
 Keep this bootstrap brief. It exists to preserve direct-entry convenience, not to replace a full brainstorm.
+
+**Exit condition:** Exit the bootstrap when each of these holds, OR the user explicitly wants to proceed: the problem frame is stated; the in-scope and out-of-scope boundaries that matter are known; success criteria or acceptance signals are known or recorded as assumptions. Recording an item as an assumption satisfies the boundaries and success-signal clauses — that is what makes the gate passable in headless mode and on a `SKIP_SCOPING_CONFIRM` run, where no synchronous user exists to answer. The problem-frame clause is the exception: it must be **stated**, because the hard floor contains `Problem Frame` unconditionally and an assumed frame would either leave a mandatory section empty or promote an unvalidated guess into product scope. When the prompt does not supply one, derive it from the request's own motivation rather than assuming it, or stop and ask; those assumptions route to `### Assumptions` at Phase 5.2 under the existing routing. A session-settled decision counts as already-established for every clause it covers — never re-ask it. This gate covers the bootstrap only; it adds no gate to Phase 2's planning questions or the brainstorm-sourced Phase 5.1.5 path.
 
 If the bootstrap uncovers major unresolved product questions:
 - Recommend `ce-brainstorm` again
@@ -624,7 +626,7 @@ Use one planning philosophy across all depths. Change the amount of detail, not 
 
 For sufficiently large, risky, or cross-cutting work, add the sections that genuinely help:
 - **Alternative Approaches Considered**
-- **Success Metrics**
+- **Success Metrics** — operational instrumentation for the deep-plan tier: dashboards, error budgets, alert thresholds, and rollout telemetry. A threshold that *is* the product outcome (p95 latency, delivery rate, adoption) belongs to the Product Contract's `### Success Criteria` and never appears here as well; Success Metrics covers only what Success Criteria does not already state. When only one applies, it is almost always Success Criteria.
 - **Dependencies / Prerequisites**
 - **Risk Analysis & Mitigation**
 - **Phased Delivery**
@@ -640,7 +642,7 @@ Do not add these as boilerplate. Include them only when they improve execution q
 
 Compose the plan using two paired references:
 
-- `references/plan-sections.md` — the section contract. Describes what the plan contains: the outcome the plan must enable for downstream consumers, the hard floor (Summary, Problem Frame, Requirements, KTDs, Implementation Units), the include-when-material catalog (HTD, Scope Boundaries, Open Questions, System-Wide Impact, Risks & Dependencies, Acceptance Examples, Documentation/Operational Notes, Sources & Research), the agency-driven escape hatch (introduce new sections when content warrants), and the ID/content rules.
+- `references/plan-sections.md` — the section contract. Describes what the plan contains: the outcome the plan must enable for downstream consumers, the hard floor (Summary, Problem Frame, Requirements, KTDs, Implementation Units), the include-when-material catalog (covering the Product Contract's product-framing sections and the implementation-facing ones; the reference enumerates them), the agency-driven escape hatch (introduce new sections when content warrants), and the ID/content rules.
 - The format-rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`) — how to present the sections in the resolved output format.
 
 The section catalog is the same regardless of format. Format-specific principles (table-vs-prose by content shape, ID prefix format, diagram rendering, etc.) live in the rendering reference.
