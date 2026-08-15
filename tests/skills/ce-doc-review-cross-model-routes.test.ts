@@ -287,7 +287,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("--no-subagents")
     expect(cmd).toContain("--permission-mode dontAsk")
     expect(cmd).toContain("--effort high")
-    expect(cmd).toContain("--model grok-4.5")
+    expect(cmd).toContain("--model grok-4.6")
     expect(cmd).toContain("--json-schema")
     expect(cmd).toContain("--output-format json")
     expect(cmd).not.toContain("stream-json")
@@ -302,7 +302,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
       expect(cmd).toContain("--workspace")
       expect(cmd).toContain("--output-format stream-json")
     }
-    expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
+    expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.6-high")
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
@@ -348,6 +348,18 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
     expect(resolvePeers("claude", "codex,claude,grok,composer", all)).toBe("codex")
     expect(resolvePeers("codex", "codex,claude,grok,composer", all)).toBe("claude")
     expect(resolvePeers("composer", "codex,claude,grok,composer", all)).toBe("codex")
+  })
+
+  test("reference states the unset-allowlist contract the script implements", () => {
+    // Regression: without this sentence, hosts read "verify against CROSS_MODEL_PEERS"
+    // + unset allowlist as a fail-closed gate and skipped the pass in non-interactive
+    // runs (ce-plan) claiming no user could sanction egress. Parity with ce-code-review.
+    const ref = readFileSync(
+      path.join(__dirname, "../../skills/ce-doc-review/references/cross-model-review.md"),
+      "utf8",
+    )
+    expect(ref).toContain("`CROSS_MODEL_PEERS` is an optional restriction: when unset")
+    expect(ref).not.toContain("fail-closed-by-default")
   })
 
   test("a front-loaded preference overrides the default order", () => {
@@ -712,7 +724,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
       CROSS_MODEL_MODEL_OVERRIDE: "composer-next",
     }
     expect(emitAdapter("composer", override)).toContain("--model composer-next")
-    expect(emitAdapter("grok-cursor", override)).toContain("--model cursor-grok-4.5-high")
+    expect(emitAdapter("grok-cursor", override)).toContain("--model cursor-grok-4.6-high")
     expect(emitAdapter("cursor", override)).not.toContain("--model")
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "composer"], {
