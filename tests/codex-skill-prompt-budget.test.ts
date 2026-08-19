@@ -28,28 +28,10 @@ const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"
  * for the procedure that took ce-babysit-pr off it.
  */
 const OVER_BUDGET = new Set([
-  "ce-brainstorm",
-  "ce-code-review",
-  "ce-commit-push-pr",
-  "ce-compound",
-  "ce-compound-refresh",
   "ce-debug",
-  "ce-doc-review",
-  "ce-dogfood",
   "ce-explain",
-  "ce-ideate",
-  "ce-optimize",
   "ce-plan",
-  "ce-pov",
-  "ce-product-pulse",
-  "ce-prototype",
-  "ce-resolve-pr-feedback",
-  "ce-retune",
-  "ce-setup",
-  "ce-sweep",
-  "ce-test-browser",
   "ce-work",
-  "lfg",
 ])
 
 const repoRoot = path.join(import.meta.dir, "..")

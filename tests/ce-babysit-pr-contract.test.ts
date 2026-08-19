@@ -44,7 +44,7 @@ const PR_SNAPSHOT = "skills/ce-babysit-pr/scripts/pr-snapshot"
 
 // ce-debug's pipeline-mode structured return. babysit branches on this exact set (Step 2 step 5)
 // and warns "do not invent infra-retry/stale" — so both the vocabulary and the ban are protocol.
-const CEDEBUG_STATUS = ["fixed-and-pushed", "diagnosed-no-fix", "flaky-infra", "needs-human"]
+const CEDEBUG_STATUS = ["fixed-and-pushed", "fixed-not-pushed", "diagnosed-no-fix", "flaky-infra", "needs-human"]
 
 // pr-snapshot's trajectory block (emitted by _update_trajectory). The subset each consumer cites
 // by name is protocol for that consumer: rename a field in the emitter and the citation dangles.
@@ -188,6 +188,20 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/silently drop/i)
     expect(babysit, "must mark every passed comment, not only the handled ones").toMatch(/mark \*?every\*? comment you passed/i)
     expect(babysit).toContain("never settle")
+  })
+
+  test("neither non-thread fetcher excludes feedback by author identity", async () => {
+    // The two fetchers are one chain: pr-snapshot decides whether a tick invokes ce-resolve at all,
+    // and get-pr-comments decides what that pass can see. When both excluded comments whose author
+    // matched the PR author, a plain "please rename X" on an agent-opened PR was invisible end to
+    // end — no wake, no pass, and babysit could report the PR ready with the request unhandled.
+    // Loop prevention lives in the dispatched mark and in ce-resolve's actionability filter.
+    const [snapshotScript, getComments] = await Promise.all([
+      readRepoFile(PR_SNAPSHOT),
+      readRepoFile("skills/ce-resolve-pr-feedback/scripts/get-pr-comments"),
+    ])
+    expect(snapshotScript).not.toContain("a != author")
+    expect(getComments).not.toContain("!= $author.login")
   })
 
   test("ce-resolve routes a whole-PR URL to full mode, a comment-fragment URL to targeted", async () => {
