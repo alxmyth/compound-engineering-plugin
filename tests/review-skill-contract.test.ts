@@ -954,6 +954,7 @@ describe("ce-code-review contract", () => {
       "skills/ce-work/references/review-findings-followup.md",
     )
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
     expect(followup).toContain("review-only")
     expect(followup).toContain("suggested_fix")
     // The apply followup consumes the review the caller already ran; re-invocation is a
@@ -964,9 +965,11 @@ describe("ce-code-review contract", () => {
     expect(followup).toMatch(/Group by `file`/i)
     expect(followup).toMatch(/batch/i)
     expect(followup).toContain("mode:agent")
-    expect(skill).toMatch(/ce-code-review.*review-only|review-only.*ce-code-review/i)
-    expect(skill).toContain("review-findings-followup.md")
-    expect(skill).toMatch(/batch.*file|batch applicable findings by file/i)
+    expect(skill).toContain("references/shipping-workflow.md")
+    expect(shipping).toContain("**Review is not fix — two steps:**")
+    expect(shipping).toContain("Review-only via `mode:agent`")
+    expect(shipping).toContain("review-findings-followup.md")
+    expect(shipping).toMatch(/batch.*file|batch applicable findings by file/i)
   })
 
   test("ce-work shipping-workflow enforces a residual-work gate after Tier 2 review", async () => {
@@ -1526,5 +1529,26 @@ describe("testing-reviewer contract", () => {
 
     // Non-behavioral changes are excluded
     expect(content).toContain("Non-behavioral changes")
+  })
+})
+
+describe("ce-code-review dispatch templates", () => {
+  // #1509: a placeholder named in the template's prose gets filled like a slot, so
+  // `{diff}` in the closing note re-emitted the whole diff into every reviewer prompt.
+  // Each placeholder may appear only once inside the fenced template, as its slot.
+  test("the reviewer template names each placeholder once, as a slot", async () => {
+    const content = await readRepoFile(
+      "skills/ce-code-review/references/subagent-template.md",
+    )
+    // The template fence nests a ```json example, so bound it by the heading that follows it.
+    const fenced = content.match(/^```\n[\s\S]*?^```\n\n## Variable Reference/m)?.[0]
+    expect(fenced).toBeDefined()
+    const counts = new Map<string, number>()
+    for (const m of fenced!.matchAll(/\{([a-z_]+)\}/g)) {
+      counts.set(m[1], (counts.get(m[1]) ?? 0) + 1)
+    }
+    for (const name of ["file_list", "diff"]) {
+      expect(counts.get(name)).toBe(1)
+    }
   })
 })
