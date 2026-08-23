@@ -107,6 +107,9 @@ Every known truncation keeps the beginning of the body and discards the rest, an
 ### Load stub
 The inline remnant left in a Skill when load-bearing content moves to a reference file: a load instruction that names what the reference contains and the failure mode of skipping it, while keeping no detail an agent could improvise from — making the load structurally necessary rather than advisory.
 
+### Output contract
+The shape a planning Skill commits to delivering for one run, chosen by its proportionality gate at intake before any research or subagent spend: Direct (a few sentences in chat handed to execution), Chat brief (a chat-only summary with units and test expectations, file-optional), or Durable (the unified plan artifact with its full floor). The gate is a condition on the work's shape with a safe failure direction toward the heavier contract; pipeline and headless runs, and any run without a synchronous user, always take Durable.
+
 ### Phase-loaded kernel
 A Skill body reduced to what must fire without a read — outcome, done bar, authority, phase order, the stop classes that hold when a reference is never opened, and a required read named immediately before each acting step — with each phase's mechanics owned by one reference loaded at that step. The design assumes the load happens at the acting point; a host that reads every reference at kernel load satisfies the letter of "read before the step" while losing both the context saving and any safety path that depends on a late read, so the kernel must state that an earlier read does not satisfy the acting-point read.
 
@@ -125,7 +128,7 @@ Liveness and progress are distinct signals, and an idle window detects only whic
 ### Cross-model pass
 An additive delegated run that sends the host workflow's review or judgment brief through a different model-provider route and folds the structured result back into the host's synthesis. It stays non-blocking when the peer cannot run, and it counts as independent corroboration only when the serving model family can be verified rather than merely requested.
 
-A peer result is usable only when it is a settled answer to the framed question — a settled Blocked verdict with its reason included. Settledness is declared by the peer in the output contract itself, never inferred from its prose; a result that satisfies the schema but is not declared final is a placeholder: it earns one bounded retry on the same route with the same target, model, and scope, inside the same time window, and if it recurs the voice is dropped with the observed reason rather than folded in as a position.
+A peer result is usable only after the route reports a successful terminal outcome and the result satisfies that consumer's output contract. Provider-failure retry allowances belong to the route worker and remain inside the original route deadline; once a provider no-review outcome reaches the host, that peer is not restarted. POV position results additionally declare settledness in their output contract: a schema-shaped result not declared final is a placeholder, never a peer voice.
 
 ### Terminalize
 The host-owned step that turns a finished external worker's working tree into one inspectable Transport commit, without requiring the worker to stage or commit.
