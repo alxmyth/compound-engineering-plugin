@@ -130,6 +130,11 @@ An additive delegated run that sends the host workflow's review or judgment brie
 
 A peer result is usable only after the route reports a successful terminal outcome and the result satisfies that consumer's output contract. Provider-failure retry allowances belong to the route worker and remain inside the original route deadline; once a provider no-review outcome reaches the host, that peer is not restarted. POV position results additionally declare settledness in their output contract: a schema-shaped result not declared final is a placeholder, never a peer voice.
 
+### Clean skip
+A delegated run that reached its gate, judged the work did not apply, and ended without producing output — a terminal outcome of the workflow rather than a failure of it.
+
+Because it ends successfully and writes nothing, its evidence on disk is identical to that of a crash that also wrote nothing; only the runner reporting the two differently keeps them apart, and a consumer that reads absent output as failure turns the ordinary case into recurring noise. A clean skip is silent in a coverage report, where a run that started and then failed must instead be named with its terminal state.
+
 ### Terminalize
 The host-owned step that turns a finished external worker's working tree into one inspectable Transport commit, without requiring the worker to stage or commit.
 
@@ -240,6 +245,16 @@ Recorded before any edit so later phases can scope to them: the commit takes fix
 Whichever tracker or monitor item the user supplied as a bug's entry point, treated as that bug's canonical record regardless of which system it lives in — an error-monitor issue counts the same as a tracker ticket.
 
 Later phases link it rather than opening a second record for the same bug elsewhere, and never ask whether to. Discovering the project's own tracker serves reading prior work, not establishing a new home. An input carrying no such reference simply has none, which is an ordinary state rather than a gap to fill.
+
+### Settle window
+The quiet period a watch loop requires before it will call a pull request ready — evidence the work stopped moving, never a guarantee nothing further is coming. Any observable movement on the pull request restarts it.
+
+Because clearing it only shows that things stopped changing, a run that clears it reports the result as a judgment for the user rather than as authorization to merge.
+
+### Liveness marker
+A signal a third party sets to announce it has begun work — a reaction, a label, a status flag. It is evidence the work started and never evidence it is still running, because nothing obliges the party to clear it when done.
+
+Liveness is therefore read from that party's own observable output on the current unit of work, never from the marker's continued presence, and the wait is bounded when no such output exists. Judging whether the announced work actually landed belongs to the reasoning layer rather than to a deterministic detector: the question is semantic, so a component that answers it mechanically is wrong in exactly the cases that matter.
 
 ### Residual
 A review finding a run accepted or deferred rather than fixed, which must reach a durable sink before the run reports itself done — a section in the pull request body, or a ticket in the project's tracker. A finding that lives only in the session is lost when the session ends, so an accepted residual blocks a merge-ready claim until it is recorded somewhere a human will find it.

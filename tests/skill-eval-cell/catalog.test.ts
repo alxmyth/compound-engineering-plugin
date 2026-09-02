@@ -184,9 +184,16 @@ describe("skill-eval-cell catalog", () => {
 
   test("feature-only decision rows are explicitly post-only", () => {
     expect(SCENARIOS.filter((s) => s.post_only).map((s) => s.id).sort()).toEqual([
+      "ce-babysit-pr/announced-review-that-finished-reads-ready",
+      "ce-babysit-pr/announced-review-with-nothing-to-show-waits",
       "ce-babysit-pr/check-only-answer-reactivates-source",
+      "ce-babysit-pr/moved-evidence-restores-the-ordinary-window",
       "ce-babysit-pr/pipeline-returns-canonical-human-decision",
+      "ce-babysit-pr/silent-reviewer-of-an-earlier-head-still-waits",
+      "ce-babysit-pr/timed-out-review-is-finished-not-approved",
+      "ce-babysit-pr/unrelated-terminal-work-is-not-the-review",
       "ce-commit-push-pr/babysit-off-preserves-human-decision",
+      "ce-commit-push-pr/project-publishing-gate",
       "ce-compound-refresh/guidance-survives-implementation-conflict",
       "ce-debug/pipeline-divergent-defer",
       "ce-plan/config-model-reaches-authoring-gate",
