@@ -1701,6 +1701,25 @@ describe("ce-code-review dispatch templates", () => {
       expect(counts.get(name)).toBe(1)
     }
   })
+
+  test("compact-return contract uses exact schema keys in both output tiers", async () => {
+    const template = await readRepoFile(
+      "skills/ce-code-review/references/subagent-template.md",
+    )
+    const outputContract = template.match(/<output-contract>[\s\S]*?<\/output-contract>/)?.[0]
+    expect(outputContract).toBeDefined()
+
+    expect(outputContract).toMatch(/full analysis \(all schema fields, including why_it_matters, evidence/)
+    expect(outputContract).toMatch(/ONLY merge-tier fields per finding:/)
+    expect(outputContract).toContain(
+      "title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix, first_evidence.",
+    )
+    expect(outputContract).toMatch(/artifact conforms to the full schema below/)
+    expect(outputContract).toMatch(/compact finding uses only this merge-tier allowlist/)
+    expect(outputContract).toMatch(/`pre_existing` as a boolean/)
+    expect(outputContract).toMatch(/`notes` is not a field/)
+    expect(template).not.toMatch(/independence_verified/)
+  })
 })
 
 describe("cross-model fold-in read", () => {
