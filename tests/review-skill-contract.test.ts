@@ -422,7 +422,7 @@ describe("ce-code-review contract", () => {
     expect(template).toMatch(/personas never produce/i)
   })
 
-  test("subagent template and schema require load-bearing line provenance in evidence", async () => {
+  test("subagent template and schema require conditional line provenance in evidence", async () => {
     const template = await readRepoFile(
       "skills/ce-code-review/references/subagent-template.md",
     )
@@ -432,7 +432,7 @@ describe("ce-code-review contract", () => {
     const schema = JSON.parse(schemaRaw)
     const evidenceDescription = schema.properties.findings.items.properties.evidence.description as string
 
-    expect(template).toMatch(/Load-bearing line provenance/i)
+    expect(template).toMatch(/provenance[^\n]{0,80}only when the finding's claim depends on line history/i)
     expect(template).toMatch(/provenance: <shortsha>/i)
     expect(template).toMatch(/omit provenance when the finding is fully justified from the diff/i)
     expect(template).toMatch(/must not replace the quote-the-line/i)
@@ -484,12 +484,15 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("Agent")
     expect(content).toContain("spawn_agent")
     expect(content).toContain("subagent")
-    expect(content).toMatch(/Bounded foreground dispatch/)
+    // #1691 review: a foreground call that blocks until the child exits cannot be bounded, so the
+    // launch must produce a bounded collector; "foreground" is no longer the mandate.
+    expect(content).toMatch(/Bounded in-turn dispatch/)
     expect(content).toMatch(/active-agent\/thread\/concurrency-limit spawn errors as backpressure/)
-    expect(content).toMatch(/background execution off/)
+    expect(content).toMatch(/background execution off only where/)
+    expect(content).toMatch(/launch with background execution and collect with the host's bounded in-turn wait/)
     // Default is a concurrent foreground batch sized to the host cap, degrading to serial
     // where the harness does not run same-message calls concurrently — not strict serial.
-    expect(content).toMatch(/foreground concurrent batch/i)
+    expect(content).toMatch(/concurrent batch collected in this turn/i)
     expect(content).toMatch(/degrades to serial/i)
     expect(content).not.toMatch(/exactly one reviewer|one reviewer at a time|one at a time/i)
     // The anti-poll ban targets detached bash/CLI delegate polling, not subagent concurrency,
@@ -564,6 +567,21 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/terminal.*tool error.*malformed.*failed reviewer/i)
     expect(content).toMatch(/no reliable blocking collection/i)
     expect(content).toMatch(/["`]status["`]\s*:\s*["`]failed["`]/i)
+    // #1689: the reviewer wait has an end, like the validator's since #1688.
+    expect(content).toMatch(/with a wait that has an end/i)
+    expect(content).toMatch(/\{run_dir\}\/\{reviewer_name\}\.json`, is the fact/i)
+    expect(content).toMatch(/repeating the host's wait back to back.*aggregate wall-clock limit/i)
+    expect(content).toMatch(/since that reviewer's own successful launch/i)
+    expect(content).toMatch(/artifact lands while the launch is still live, stop that launch/i)
+    expect(content).toMatch(/neither a terminal outcome nor an artifact when the limit passes.*failed reviewer/i)
+    expect(skill).toMatch(/within the bound that reference states/i)
+    const subagentTemplate = await readRepoFile("skills/ce-code-review/references/subagent-template.md")
+    expect(subagentTemplate).toMatch(/Budget: you have \d+ minutes of wall clock and about \d+ tool calls/i)
+    expect(subagentTemplate).toMatch(/write it before you return/i)
+    // The lifecycle rule moved out of the body (#1689 byte cap); it must fire where agents are launched and where the validator is collected.
+    expect(content).toMatch(/\*\*Agent lifecycle\.\*\* Collect each reviewer's final result/)
+    const finish = await readRepoFile("skills/ce-code-review/references/finish-review.md")
+    expect(finish).toMatch(/agent lifecycle rule from `references\/dispatch-reviewers\.md`/)
     // #1654: Codex delivers a subagent's final answer as a host message tagged with the
     // launch's task name, while wait_agent reports status. The collector rule must state the
     // condition (an attributable terminal result reached in-turn), accept that channel, and
@@ -635,7 +653,16 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Eight findings is the normal cap/i)
     expect(content).toMatch(/expand that same batch.*include every surviving P0\/P1/i)
     expect(content).toMatch(/never split the work into another batch/i)
-    expect(content).toMatch(/Run the validator batch foreground/i)
+    // #1679: a foreground-only collector has no end on hosts whose blocking call
+    // cannot be bounded, so the contract is a bounded wait on the verdicts file.
+    expect(content).not.toMatch(/Run the validator batch foreground/i)
+    expect(content).toMatch(/wait that has an end/i)
+    expect(content).toMatch(/validator-verdicts\.json/)
+    // Codex's wait_agent caps a single wait at ~30s (PR #1688 review): the bound is aggregate, not per wait.
+    expect(content).toMatch(/repeated back to back.*aggregate wall-clock limit/i)
+    expect(content).toMatch(/no bounded wait exists.*do not launch the validator/i)
+    expect(content).toMatch(/bound passes.*validator infrastructure failure/i)
+    expect(content).toMatch(/uninspected.*validator infrastructure failure for that finding/i)
     expect(content).toMatch(/Cost, elapsed time, confidence.*never licenses an additional skip/i)
 
     // Foreground is a request, not proof that the host returned a verdict in-band.
@@ -659,6 +686,13 @@ describe("ce-code-review contract", () => {
     expect(validatorTemplate).toMatch(/surrounding code handles it/i)
     expect(validatorTemplate).toMatch(/one verdict for every input # exactly once/i)
     expect(validatorTemplate).toMatch(/Do not invent new findings/i)
+    // #1679: the validator states its own budget and writes verdicts to disk.
+    expect(validatorTemplate).toMatch(/\d+ minutes of wall clock/i)
+    expect(validatorTemplate).toMatch(/tool calls per finding/i)
+    expect(validatorTemplate).toMatch(/validator-verdicts\.json.*before you return/i)
+    expect(validatorTemplate).toContain('"validated": true | false | "uninspected"')
+    // The read-only rule must carve out the one write the bounded wait depends on.
+    expect(validatorTemplate).toMatch(/one permitted write/i)
   })
 
   test("Stage 5c requires explicit local-apply authority and mode:agent is always report-only", async () => {
@@ -825,7 +859,7 @@ describe("ce-code-review contract", () => {
       "skills/ce-code-review/references/diff-scope.md",
     )
     const validator = await readRepoFile(
-      "skills/ce-code-review/references/validator-template.md",
+      "skills/ce-code-review/references/validator-batch-template.md",
     )
 
     expect(skill).toContain("<pr-scope-mode>branch-remote</pr-scope-mode>")

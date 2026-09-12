@@ -61,8 +61,8 @@ These hold regardless of which skill produced the artifact.
   `verification-contract`, `definition-of-done`, and `appendix` when those
   sections exist. Requirements-only artifacts omit links to absent
   implementation sections.
-- **Visible readiness metadata.** If the artifact has `artifact_contract`,
-  `artifact_readiness`, `product_contract_source`, or `execution`, render
+- **Visible artifact metadata.** If the artifact has `artifact_contract`,
+  `product_contract_source`, or `execution`, render
   those values in the visible header metadata. Do not hide a duplicate copy in
   JSON, `data-*`, or `<meta>` tags.
 
@@ -345,7 +345,7 @@ contracts — the agent picks shapes that fit the content.
   labels and values for Goal, Files, Dependencies), and secondary
   content (Approach, Test Scenarios, Verification, Patterns to Follow)
   inside `<details>` collapsibles, **default-closed**. At 3+ units the
-  default-closed rule is load-bearing — rendering all units fully
+  default-closed rule must hold — rendering all units fully
   expanded turns the doc into one continuous scroll where the reader
   can't see the unit list at a glance. The metadata strip is the
   primary always-visible surface; subsection labels (`<summary>`) are

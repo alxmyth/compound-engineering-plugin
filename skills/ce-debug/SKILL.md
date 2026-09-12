@@ -25,7 +25,7 @@ Wherever this skill asks the user something, use the host's blocking question to
 
 ## Secrets in evidence
 
-Debugging surfaces raw output constantly — command results, captured payloads, log excerpts — and the harness may render a command's output the moment it runs, so the gate fires when you construct the command, not afterward. Keep credentials in env vars rather than on the command line; when a command's output may carry a secret (verbose HTTP traces, dumped headers, config or environment prints), capture it to a file and surface only sanitized excerpts, writing `<REDACTED>` in place of each secret. No secret (credential, token, auth header, connection string) appears in anything shown, written, or committed. If sanitizing removes what the diagnosis needs, say so and ask the user rather than un-redacting.
+Debugging surfaces raw output constantly — command results, captured payloads, log excerpts — and the harness may render a command's output the moment it runs, so check secrets when you construct the command, not afterward. Keep credentials in env vars rather than on the command line; when a command's output may carry a secret (verbose HTTP traces, dumped headers, config or environment prints), capture it to a file and surface only sanitized excerpts, writing `<REDACTED>` in place of each secret. No secret (credential, token, auth header, connection string) appears in anything shown, written, or committed. If sanitizing removes what the diagnosis needs, say so and ask the user rather than un-redacting.
 
 ## Artifact Root
 
@@ -59,7 +59,7 @@ Once the root cause is confirmed, write the findings as a user-visible block: th
 
 **Same-turn presentation before the gate:** do not open the fix-choice question until that findings block has been written in full — in this turn or the immediately preceding assistant message. The blocking question tool renders only its own stem on modal harnesses, so a question fired on "root cause confirmed" alone leaves the user choosing with none of the causal chain in front of them. Naming the options is not presenting the findings, and a promise to explain after the choice is too late.
 
-Then ask (per **Blocking questions**) which path to take. Do not assume the user wants action now; the test recommendations are part of the diagnosis either way.
+When the request has not already authorized the next action, ask (per **Blocking questions**) which path to take, offering these three options. An explicit fix request is Phase 3. An explicit diagnosis-only request skips to Phase 4. `mode:pipeline` never asks. The test recommendations are part of the diagnosis either way.
 
 1. **Fix it now** — proceed to Phase 3
 2. **Diagnosis only — I'll take it from here** — skip the fix, write Phase 4's summary, end the skill
@@ -94,7 +94,7 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 
 **If Phase 3 was skipped**, stop after the summary — the user already said they were taking it from here. Do not prompt.
 
-**If Phase 3 ran, read `references/post-fix-handoff.md` now and follow it before routing below.** It defines the quality steps after a fix: the contextual-override checks, the skip rule for mechanical fixes, the scoping that keeps `ce-simplify-code` and `ce-code-review` off unrelated branch work, what to do with leftover findings, the `## Post-Fix Quality` block, and the criteria for offering to capture a learning. None of that appears in this body. The routing below names *which* action fires, never the scope rules that make it safe, so it cannot be improvised from. Skipping the read ships an unreviewed fix, lets review reach into unrelated branch work, and strands accepted findings in the session.
+**If Phase 3 ran, read `references/post-fix-handoff.md` now and follow it before routing below.** It defines the quality steps after a fix: the contextual-override checks, the skip rule for mechanical fixes, the scoping that keeps `ce-simplify-code` and `ce-code-review` off unrelated branch work, what to do with leftover findings, the `## Post-Fix Quality` block, and the criteria for offering to capture a learning. None of that appears in this body. The routing below names *which* action runs, never the scope rules that make it safe, so it cannot be improvised from. Skipping the read ships an unreviewed fix, lets review reach into unrelated branch work, and strands accepted findings in the session.
 
 #### Routing
 

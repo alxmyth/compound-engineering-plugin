@@ -13,8 +13,8 @@ A great brainstorm produces the first version of the same plan artifact that
 - **The planning agent** (`ce-plan` or a human) produces an implementation
   plan without inventing user behavior, scope boundaries, or success
   criteria — the brainstorm answered those.
-- **The reviewer** sees the framing choices, distinguishes pinned from open,
-  and catches scope gaps before planning.
+- **The reviewer** sees the framing choices, distinguishes settled decisions
+  from open ones, and catches scope gaps before planning.
 - **The future reader** traces why the proposed thing matters, who it's for,
   and what success looks like.
 
@@ -27,7 +27,6 @@ artifact contract:
 
 - **Path:** `<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>` (local wall-clock write time; no daily sequence number). Reserve the path atomically; on collision, retry with the smallest available numeric suffix before the extension rather than overwriting.
 - **`artifact_contract: ce-unified-plan/v1`**.
-- **`artifact_readiness: requirements-only`**.
 - **`product_contract_source: ce-brainstorm`**.
 - **`execution`** only when the brainstorm has enough signal to classify the
   eventual execution domain. For software features, use `execution: code`.
@@ -49,9 +48,10 @@ includes:
   objective is whatever depended on it. When the seed supplies an approach ("move X to Y"), that is
   the **Means** (its own line) and the objective is the outcome it serves,
   taken from the dialogue or the project's stated problem rather than
-  assumed. When the coherent-work gate split a broader request, the objective
-  names the current area and product authority says the surrounding areas are
-  not active scope.
+  assumed. When the coherent-work gate (Phase 0.3's check that the request
+  holds one plannable outcome) split a broader request, the objective names
+  the current area and product authority says the surrounding areas are not
+  active scope.
 - `## Product Contract` containing the brainstorm sections below.
 
 Do **not** emit a `## Goal Launch Block` or `## Reader Index`: the launch prompt
@@ -128,16 +128,16 @@ targets the connective tissue around precision, never the precision itself.
 question or supersedes earlier text, rewrite or remove the original entry —
 don't append a separate "resolutions" layer that leaves the superseded text
 standing, and don't keep superseded prose as strikethrough. Version control
-holds the history. Stacked question/resolution strata double the reading surface
-and hide which text is live.
+holds the history. Stacked question/resolution layers double what a reader must
+read and hide which text is live.
 
 **One owner per rule; cite, don't restate.** A normative rule — a check, cap,
 threshold, or output contract — is stated in full at exactly one
 entry: the R-ID that carries it. Every other section that needs the rule
 cites that ID (`Covers R4`, `Governs R5, R7`, "per R6") and adds only
-what is local to that section. Linked projections are sanctioned — an AE
-restating behavior under a `Covers R…` marker, a Flow citing the Rs it
-sequences. **Unlinked sibling restatement** — the same rule written out again
+what is local to that section. A restatement that links back to the ID is
+allowed — an AE restating behavior under a `Covers R…` marker, a Flow citing
+the Rs it sequences. **Unlinked sibling restatement** — the same rule written out again
 in a Key Decision, Flow, or Scope bullet with no ID link — is the defect:
 each copy drifts independently and the doc has no rule for which one wins.
 
@@ -385,16 +385,12 @@ artifact.
   as the resume-detection key when `ce-brainstorm` scans for an existing
   artifact to continue.
 - **`artifact_contract`** — always `ce-unified-plan/v1` for new outputs.
-- **`artifact_readiness`** — always `requirements-only` for new
-  `ce-brainstorm` outputs. Do not use `active`, `in_progress`, `completed`,
-  or `done`.
 - **`product_contract_source`** — always `ce-brainstorm`.
 
 ### No status field
 
 Unified plan artifacts have no `status` field and no `active → completed`
-lifecycle. `artifact_readiness` is document completeness, not execution
-progress. No CE artifact carries mutable progress state; whether work shipped
+lifecycle or readiness flag. Readers assess the contents and unresolved questions. No CE artifact carries mutable progress state; whether work shipped
 is derived from git, not stored in the doc. Do not introduce one.
 
 ### Field-name stability
