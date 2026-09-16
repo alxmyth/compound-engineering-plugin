@@ -38,11 +38,12 @@ describe("ce-work review contract", () => {
     expect(shipping).toContain("ce-simplify-code")
     expect(shipping).toContain("3. **Code Review**")
 
-    // Single portable path: ce-code-review self-sizes (lite vs full roster).
+    // Single portable path: ce-code-review self-sizes. Callers do not classify.
     // The former Tier 1 (harness-native /review) / Tier 2 (escalation) split is gone,
     // along with harness-specific review detection.
     expect(shipping).toContain("ce-code-review")
     expect(shipping).toContain("as the single path")
+    expect(shipping).toContain("Do not classify lite versus full")
     expect(shipping).not.toContain("**Tier 1 -- harness-native review")
     expect(shipping).not.toContain("(escalation only)")
     // Skip only for a purely mechanical diff; everything else is reviewed
@@ -864,7 +865,10 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("requirements-only unified plan")
     expect(synthesis).toContain("implementation-ready unified plan")
     expect(synthesis).toContain("user's existing request authorizes it")
-    expect(synthesis).toContain("return control to the caller")
+    // 2026-09-14: "return control to the caller" read as a handoff cue that ended
+    // the turn in an inline lfg run; the invariant is the nested return, stated as
+    // the skill ending rather than the turn.
+    expect(synthesis).toContain("ends this skill, not the turn")
   })
 
   // Split by load-time: the question-tool rules and the dispatch backpressure
@@ -1230,8 +1234,8 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     // Both ends name the same trailer format (ce-commit-push-pr prints it from the
     // apply reference its Step 5 mandates).
     expect(skill).toContain("New concepts:")
-    // The trailer is consumed in the shipping tail lfg's step 8 reads first.
-    expect(await readRepoFile("skills/lfg/references/shipping-tail.md")).toContain("New concepts:")
+    // The trailer is consumed in the shipping reference lfg's step 9 reads first.
+    expect(await readRepoFile("skills/lfg/references/shipping.md")).toContain("New concepts:")
 
     // The callsite passes the mode explicitly rather than relying on defaults
     expect(lfg).toContain("invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`")
@@ -1240,7 +1244,7 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     // for the active host rather than hardcoding one harness's syntax. That report
     // moved into the reference lfg's step 10 names as a required read before it
     // prints anything, so the rendering contract is asserted there.
-    const closeOut = await readRepoFile("skills/lfg/references/shipping-tail.md")
+    const closeOut = await readRepoFile("skills/lfg/references/shipping.md")
     expect(closeOut).toContain("New concept introduced:")
     expect(closeOut).toContain("run <rendered ce-explain invocation> to go deeper")
     expect(closeOut).toContain("run <rendered ce-babysit-pr invocation> to watch it through review to merge")
