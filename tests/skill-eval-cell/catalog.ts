@@ -33,6 +33,8 @@ export const CE_OPTIMIZE_BASE_REF = "b159e1fa4c70efa995742269d38269bcc7524dd2"
 /** main before annotation waits became event-driven and symptom-only notes became a question. */
 const ANNOTATION_WAIT_BASE_REF = "d1734f7ed5341b6d0b683405da82895f0a0a25f7"
 export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68bf7"
+/** main before judgment-bound escalations were adjudicated through ce-pov instead of parking as needs-human. */
+export const ADJUDICATE_BASE_REF = "020c5e10d49aed19ee9354917780e94e665f5977"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -131,6 +133,8 @@ export type Scenario = {
 }
 
 const UNDERSTANDING_BASE_REF = "8df67793b9733d2220fa9a7fc37139931471af62"
+/** main before Standard/Deep choices that depend on existing behavior were traced through ce-explain (the optional-sentence contract). */
+const BEHAVIOR_TRACE_BASE_REF = "c152896f1cda13548fc1a05b2aff88caf8ae8dba"
 
 const FIX = "tests/skill-eval-cell/fixtures"
 
@@ -598,6 +602,25 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     pre_contract: "POV judges supplied approaches against the project.",
     task: "Use ce-pov only to resolve fit, then stop before grounding or dispatch. We have two fully developed retry ownership proposals with failure behavior, deadlines, evidence and tradeoffs. Judge these existing proposals against the project; no new approaches need development. State the owning skill as ROUTE: <name>.",
     grade: { must_include_field: "ROUTE", must_include: ["ce-pov"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-pov/peer-named-by-requested-model",
+    skill: "ce-pov",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    fixture: `${FIX}/pov-panel-receipts`,
+    why: "A receipt-less route records model_actual: unverified; the reconcile note was rendering that as an unknown model even though the requested model is always known (#1756).",
+    pre_contract: "The panel record kept requested and served model separate but the chat note collapsed a missing receipt into missing identity.",
+    task: "You are finishing the reconcile step of a ce-pov oracle panel. Read the skill and references/cross-model-panel.md, then the three JSON files under panel/: host.json is the host's position; each peer-*.json is one peer's fold-in artifact with its identity receipts. Do not dispatch anything and do not write files. Write the user-facing chat note that reconciles the panel, naming each peer, its position and movement, and any caveat the reference says belongs there. After the note, declare exactly these lines: CODEX_PEER: <the peer name exactly as your note renders it>; CODEX_CAVEAT: <none | serving-unverified>, whichever your note attached to that peer; CURSOR_CAVEAT: <none | serving-unverified>, likewise.",
+    grade: {
+      files_read_post: ["references/cross-model-panel.md"],
+      workspace_read: ["panel/peer-codex.json", "panel/peer-cursor.json"],
+      declared: { CODEX_PEER: "Codex (gpt-6-sol)", CODEX_CAVEAT: "none", CURSOR_CAVEAT: "serving-unverified" },
+      actions: "none",
+      delegates: "none",
+    },
   },
   {
     id: "ce-plan/requested-bakeoff-boundary",
@@ -1242,6 +1265,45 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     grade: {
       files_read_post: ["references/cross-model-panel.md"],
       delegates: "some",
+    },
+  },
+  {
+    id: "ce-resolve-pr-feedback/judgment-bound-adjudicates",
+    baseline_ref: ADJUDICATE_BASE_REF,
+    skill: "ce-resolve-pr-feedback",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/resolve-feedback-adjudicate`,
+    timeout_secs: 240,
+    why: "A contested-but-judgment-only item parked as needs-human forever; an authority-bound one must still park; a cosmetic nit must still get its ordinary reply, not an adjudication.",
+    pre_contract: "A deliberate choice with positive intent evidence plus genuine disagreement is needs-human. Product or permission calls are needs-human. A cosmetic preference is replied to.",
+    task: "Use ce-resolve-pr-feedback on PR #12. The unresolved review threads are already on disk at threads.json and the code is in this workspace; do not call gh or git, and do not invoke any other skill, dispatch, or edit anything. Apply the evaluation rubric to each thread in your own context and stop after judging. For each thread declare exactly one line `T<id>: <verdict>` where the verdict is one of fix, reply, declined, needs-human, or adjudicate (adjudicate meaning you would hand the decision to ce-pov before escalating).",
+    grade: {
+      files_read_post: ["references/evaluation-rubric.md"],
+      workspace_read: ["threads.json"],
+      declared: { T1: "adjudicate", T2: "needs-human", T3: "reply" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-resolve-pr-feedback/pipeline-root-adjudicates-first",
+    baseline_ref: ADJUDICATE_BASE_REF,
+    skill: "ce-resolve-pr-feedback",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/resolve-feedback-adjudicate`,
+    timeout_secs: 240,
+    why: "Under a non-converging trajectory the approach-level root escalated straight to needs-human, which is the babysit stalemate in its most common shape.",
+    pre_contract: "A root whose next fix would begin its third round is escalated as one approach-level needs-human before any fix.",
+    task: "Use ce-resolve-pr-feedback with mode:pipeline on PR #12. The caller passed trajectory: invariant_rounds [{ key: \"retry-cap\", rounds: 2 }], new_threads_this_tick 1, unresolved_trend rising. The unresolved threads are on disk at threads.json and the code is in this workspace; do not call gh or git, and do not invoke any other skill, dispatch, or edit anything. Decide what happens to the retry-cap root before any fix and stop. Declare exactly one line `ROOT: <adjudicate | needs-human | fix>` (adjudicate meaning you would hand the root decision to ce-pov before escalating).",
+    grade: {
+      files_read_post: ["references/pipeline-mode.md", "references/evaluation-rubric.md"],
+      declared: { ROOT: "adjudicate" },
+      actions: "none",
+      delegates: "none",
     },
   },
   {
@@ -2339,6 +2401,62 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
       actions: "none",
       delegates: "none",
     },
+  },
+  {
+    id: "ce-plan/trace-standard-behavior-dependent",
+    baseline_ref: BEHAVIOR_TRACE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/understanding-queue`,
+    timeout_secs: 600,
+    why: "A Standard choice that depends on how claim and its lease already behave is traced through ce-explain before the choice is fixed; the pattern pass does not establish behavior. The old sentence left the trace optional, so a capable model could fix the choice from the research summary alone.",
+    pre_contract: "When an unanswered question about system behavior or design rationale would materially change the work, ce-explain may be used.",
+    task: "Use ce-plan at the end of research for a Standard Durable plan. Product scope is settled: the worker should stop polling claim() every second and rely on notifications, with a backstop for missed ones. The research pass reported the queue's file layout and that claim() is called from the worker loop; it did not trace what claim() and the lease guarantee under a missed or duplicate notification, which is what the backstop design depends on. Decide whether the choice needs a behavior trace before it is fixed. State TRACE: <ce-explain|none> on its own line and explain why; stop before dispatch or writing.",
+    grade: { files_read_post: ["references/research.md"], declared: { TRACE: "ce-explain" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-plan/trace-skipped-rationale-established",
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    fixture: `${FIX}/understanding-queue`,
+    timeout_secs: 600,
+    why: "When research already established the behavior and rationale the choice depends on, the trace is skipped; the gate must not become a mandatory stage.",
+    pre_contract: "When an unanswered question about system behavior or design rationale would materially change the work, ce-explain may be used.",
+    task: "Use ce-plan at the end of research for a Standard Durable plan. Product scope is settled: make the lease duration a configuration value instead of the literal in claim(). Research already traced the relevant behavior: claim() runs in one transaction that takes the first ready job and leases it until now plus the literal, DECISION.md records that the 30-second duration was never justified and that polling stays as recovery for missed notifications, and no other code reads the lease. Decide whether the choice still needs a behavior trace before it is fixed. State TRACE: <ce-explain|none> on its own line and explain why; stop before dispatch or writing.",
+    grade: { files_read_post: ["references/research.md"], declared: { TRACE: "none" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-plan/trace-lightweight-own-reads",
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    fixture: `${FIX}/understanding-queue`,
+    timeout_secs: 600,
+    why: "A Lightweight plan does not dispatch the trace; its bounded reads of the named files are the trace unless the plan is reclassified to Standard.",
+    pre_contract: "A Lightweight plan grounds itself from bounded inline reads and does not dispatch research agents.",
+    task: "Use ce-plan for a Lightweight Durable plan: add 0-200ms of random jitter to the worker's one-second poll interval so several workers do not call claim() in lockstep. Nothing about claim() or the lease changes. Decide whether this needs a behavior trace through ce-explain before the plan is written. State TRACE: <ce-explain|none> on its own line and explain why; stop before dispatch or writing.",
+    grade: { files_read_post: ["references/research.md"], declared: { TRACE: "none" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-plan/trace-degrades-to-single-pass",
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    fixture: `${FIX}/understanding-queue`,
+    timeout_secs: 600,
+    why: "When ce-explain cannot be invoked, the gate still fires as one extraction pass labeled a single-pass trace rather than being skipped.",
+    pre_contract: "When an unanswered question about system behavior or design rationale would materially change the work, ce-explain may be used.",
+    task: "Use ce-plan at the end of research for a Standard Durable plan. Product scope is settled: the worker should stop polling claim() every second and rely on notifications, with a backstop for missed ones. The research pass reported the queue's file layout and that claim() is called from the worker loop; it did not trace what claim() and the lease guarantee under a missed or duplicate notification, which is what the backstop design depends on. The ce-explain skill cannot be invoked in this session. Decide how the choice gets its behavior trace before it is fixed. State TRACE: <ce-explain|single-pass|none> on its own line and explain why; stop before dispatch or writing.",
+    grade: { files_read_post: ["references/research.md"], declared: { TRACE: "single-pass" }, actions: "none", delegates: "none" },
   },
   {
     id: "ce-plan/direct-trivial-stays-in-chat",
