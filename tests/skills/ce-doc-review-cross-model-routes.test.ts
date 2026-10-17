@@ -309,6 +309,18 @@ describe("cross-model-doc-review route safety (R17)", () => {
     expect(args[args.indexOf("--file") + 1].startsWith(cwd)).toBe(false)
   })
 
+  test("the peer prompt says the document is embedded so a peer never reads it from disk", () => {
+    const sb = sandbox(["opencode"])
+    const runDir = makeRunDir()
+    const r = run(["claude", "opencode", "adversarial", makeDoc("# embedded body\n"), "plan", "none", runDir], runDir, sb.env)
+    expect(r.files).toContain("adversarial-opencode.json")
+    const sent = readFileSync(`${sb.logs.prompt}.1`, "utf8")
+    expect(sent).toContain("Do not call tools or read files")
+    expect(sent.indexOf("Do not call tools or read files")).toBeLessThan(sent.indexOf("Document content:"))
+    expect(sent).toContain("# embedded body")
+    expect(sent).not.toContain(path.dirname(sb.logs.prompt))
+  })
+
   test("opencode launches with project config disabled and edits and web denied, in plan mode", () => {
     const sb = sandbox(["opencode"])
     const runDir = makeRunDir()
@@ -721,6 +733,28 @@ describe("cross-model-doc-review acpx transport preflight", () => {
     expect(r.stderr).not.toContain("peer skip evidence")
   })
 
+  test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {
+    const base = path.join(temp("xmodel-doc-stale-"), "s")
+    for (const ext of ["stderr", "exit"]) writeFileSync(`${base}.1.${ext}`, readFileSync(path.join(STREAMS, `stale-npm-metadata.${ext}`)))
+    acpStream({ text: review() }, `${base}.2`)
+    const sb = sandbox(["codex"], base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(r.files).toContain("adversarial-codex.json")
+    expect(envLog(sb)).toContain("npm_config_prefer_offline=false\nnpm_config_fetch_retries=0\nnpm_config_prefer_online=true\n")
+    expect(r.stderr).not.toContain("transport unavailable")
+  })
+
+  test("stale-metadata text after the prompt was sent is not retried", () => {
+    const sb = sandbox(["codex"], acpStream({ error: "No matching version found", stderr: readFileSync(path.join(STREAMS, "stale-npm-metadata.stderr"), "utf8"), exit: 1 }))
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(calls(sb)).toBe(1)
+    expect(envLog(sb)).toContain("npm_config_prefer_offline=true\n")
+    expect(r.files).not.toContain("adversarial-codex.json")
+  })
+
   test("a codex agent override in ~/.acpx/config.json fails only that route; a replacement route still runs", () => {
     const sb = sandbox(["codex", "claude"])
     mkdirSync(path.join(sb.home, ".acpx"))
@@ -745,6 +779,43 @@ describe("cross-model-doc-review acpx transport preflight", () => {
     expect(r.stderr).toMatch(/transport unavailable \(pre-egress, route\): Cannot apply --model .*Available models: stub-model-a, stub-model-b/)
     expect(calls(sb)).toBe(1)
     expect(r.files).toEqual([])
+  })
+})
+
+const ANTIGRAVITY_BINS = ["agy_acp_server.par", "localharness_external"]
+function unadvertisedStream(model: string, available: string, base: string) {
+  const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+    rpc({ id: 1, result: { sessionId: "stub-session-1" } }),
+    rpc({ id: null, error: { code: -32603, message: `Cannot apply --model "${model}": the ACP agent did not advertise that model. Available models: ${available}.`, data: { acpxCode: "RUNTIME" } } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.exit`, "1\n")
+}
+
+describe("cross-model-doc-review antigravity route", () => {
+  test("--emit-adapter antigravity denies every permission and isolates GEMINI_HOME", () => {
+    const command = emitAdapter("antigravity")
+    expect(command).toContain("GEMINI_HOME=<gemini-home>")
+    expect(command).toContain("--deny-all --model gemini-4-argon antigravity exec --config-option mode=default --config-option thinking_level=high")
+  })
+
+  test("Argon unoffered falls back once to Flash, and a Gemini host never selects Antigravity", () => {
+    const base = path.join(temp("xmodel-doc-stream-"), "s")
+    unadvertisedStream("gemini-4-argon", "gemini-3.8-flash", `${base}.1`)
+    acpStream({ text: review() }, `${base}.2`)
+    const sb = sandbox(ANTIGRAVITY_BINS, base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "antigravity", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(r.stderr).toContain("falling back to gemini-3.8-flash")
+    const out = published(runDir, "adversarial-antigravity.json")
+    expect(out.model_requested).toBe("gemini-3.8-flash")
+    expect(out.serving_family).toBe("gemini")
+    expect(resolvePeers("gemini", "codex,claude,grok,antigravity", ANTIGRAVITY_BINS)).not.toContain("antigravity")
+    expect(resolvePeers("claude", "codex,claude,grok,antigravity", ANTIGRAVITY_BINS, { CROSS_MODEL_HOST_HARNESS: "antigravity" })).not.toContain("antigravity")
   })
 })
 
