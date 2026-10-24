@@ -698,6 +698,14 @@ describe("ce-work fixed write routes", () => {
     expect(captured(f, "launch-env")).toContain(`CODEX_PATH=${path.join(bundle, "codex")}`)
   })
 
+  test("the codex route disables the user's Codex plugins so the peer cannot pick up CE skills (issue #1788)", () => {
+    const f = fixture()
+    const bin = stubBin(f)
+    const result = run("codex", f, { ...cleanEnv(), PATH: isolatedPath(bin) })
+    expect(result.result.terminal_status).toBe("completed")
+    expect(captured(f, "launch-env")).toContain('CODEX_CONFIG={"features":{"plugins":false}}\n')
+  })
+
   test.each([...ROUTES])("%s is unavailable when enforceable confinement is required", (route) => {
     const f = fixture()
     const bin = stubBin(f)
@@ -721,6 +729,15 @@ describe("ce-work acpx outcomes", () => {
     const ok = run("codex", g, withBin(stubBin(g, acpStream({ exit: 5 }))))
     expect(ok.code).toBe(0)
     expect(ok.result.terminal_status).toBe("completed")
+  })
+
+  test("a model the provider rejects in reply text is named in the failure reason with the advertised models", () => {
+    const f = fixture()
+    const result = run("codex", f, withBin(stubBin(f, path.join(STREAMS, "model-rejected-end-turn"))))
+    expect(result.code).toBe(1)
+    expect(result.result.terminal_status).toBe("failed")
+    expect(result.result.failure_reason).toContain("The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account.")
+    expect(result.result.failure_reason).toContain("advertised models: gpt-6.1-sol, gpt-6-sol, gpt-6-luna, gpt-5.6-sol")
   })
 
   test.each([

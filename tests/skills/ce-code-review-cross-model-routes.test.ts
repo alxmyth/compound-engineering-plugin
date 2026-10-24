@@ -619,6 +619,13 @@ describe("cross-model-adversarial-review provider selection", () => {
     expect(envLog(sb)).toContain(`CODEX_PATH=${path.join(sb.bin, "codex")}\n`)
   })
 
+  test("the codex route disables the user's Codex plugins so the peer cannot pick up ce-code-review (issue #1788)", () => {
+    const sb = sandbox(["codex"])
+    const runDir = makeRunDir()
+    run(["claude", "codex", "HEAD", runDir], runDir, { ...sb.env, CODEX_CONFIG: '{"features":{"plugins":true}}' })
+    expect(envLog(sb)).toContain('CODEX_CONFIG={"features":{"plugins":false}}\n')
+  })
+
   test("a front-loaded preference overrides the default order", () => {
     expect(resolvePeers("claude", "grok,codex,claude,composer", ["codex", "claude", "grok", "cursor-agent"])).toBe("grok")
   })
@@ -783,6 +790,16 @@ describe("cross-model-adversarial-review outcome classification", () => {
     expect(r.files).not.toContain("adversarial-codex.json")
     expect(r.stderr).toContain(`peer skip evidence: ${evidence}`)
     expect(r.stderr).not.toContain("pre-egress")
+  })
+
+  // codex-acp streams a provider 400 as reply text and still ends the turn with end_turn.
+  test("a model the provider rejects in reply text is named in skip evidence with the advertised models", () => {
+    const sb = sandbox(["codex"], path.join(STREAMS, "model-rejected-end-turn"))
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, sb.env)
+    expect(r.files).not.toContain("adversarial-codex.json")
+    expect(r.stderr).toContain("The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account.")
+    expect(r.stderr).toContain("peer skip evidence (advertised models): gpt-6.1-sol, gpt-6-sol, gpt-6-luna, gpt-5.6-sol")
   })
 
   test("a cancelled turn that exits 0 is not published even with findings in its reply", () => {
