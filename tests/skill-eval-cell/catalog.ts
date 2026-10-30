@@ -128,6 +128,8 @@ export type Grade = {
   /** Text that must not appear in the PATH shim log. */
   shim_log_must_not?: string[]
   workspace_contains?: Array<{ path: string; needle: string }>
+  /** With a needle, the file must exist and not contain it, so a deleted file cannot pass. Without one, the file must not exist. */
+  workspace_lacks?: Array<{ path: string; needle?: string }>
   /**
    * A field of a parsed JSON object must equal one of `any_of`. The object is the
    * workspace file at `path` (the whole file must be JSON), or the JSON object the
@@ -180,6 +182,16 @@ const UNDERSTANDING_BASE_REF = "8df67793b9733d2220fa9a7fc37139931471af62"
 const BEHAVIOR_TRACE_BASE_REF = "c152896f1cda13548fc1a05b2aff88caf8ae8dba"
 
 const FIX = "tests/skill-eval-cell/fixtures"
+/** main before #1947 brought declared Compound Packs into ce-work, ce-debug, and the lite and focused review paths. */
+const PACKS_EXECUTION_BASE_REF = "248883d86c423aa6e086e4811d709effc0f1d9ad"
+const LITE_PACK_PROBE_TASK = `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and run the selected path's own in-context checks. This is a probe: do not create the run directory, do not dispatch reviewers, and do not edit any file.
+
+End with exactly two lines in this form and nothing else on those lines:
+
+DEPTH: <lite, focused, or full>
+PACK: <violation, clean, or not-checked>
+
+where PACK is violation when a changed line contradicts a declared Compound Pack rule that this review checked. Quote any rule in prose above the two lines, not on them.`
 
 /** main before ce-ideate's run-scaling, §5.3, and issue-tracker detection blocks were restated as conditions. */
 const IDEATE_SCALING_BASE_REF = "00d0a5bbf1300b2138b65ce724b325dd4dff77ba"
@@ -416,6 +428,10 @@ const BABYSIT_TICK_DECISIONS: Scenario[] = BABYSIT_TICK_DECISION_ROWS.map((s) =>
 const SETUP_INSTRUCTIONS_TASK =
   "Use the ce-setup skill to check this repository's Compound Engineering setup. For every change it would offer, show the exact text and where in the file it would go."
 
+/** main before review-docs updates were restated as bringing the docs current and AI reviewer files joined the set. */
+const SETUP_STANDARDS_BASE_REF = "121a3bd60d296be72b2d3c0b08131b7b08fadc5a"
+const SETUP_STANDARDS_HISTORY =
+  "The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation). I approve every draft and change you preview: write them all without asking me again, and do not commit."
 
 /** Cheap read-only cells that pin a real decision. Live mutation/delegation is not in this set. */
 export const WAVE1 = [
@@ -3357,6 +3373,144 @@ where STANDARDS is violation when a changed line contradicts a rule in a criteri
     },
   },
   {
+    id: "ce-code-review/depth-gate-review-policy-exclusion",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/gen/cart.ts"],
+    fixture: `${FIX}/review-policy-excludes`,
+    post_only: true,
+    why: "A committed REVIEW.md excludes src/gen/. A staged console.log there breaks a CODING_STANDARDS.md rule, but the policy removes the finding and Coverage counts the removal.",
+    pre_contract: "ce-code-review read no REVIEW.md, so the finding was reported.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and, if lite, the criteria check and the review policy only. This is a read-only probe: do not create the run directory and do not dispatch reviewers; read any review policy directly where the skill says to read it from.
+
+End with exactly three lines in this form and nothing else on those lines:
+
+DEPTH: lite
+REPORTED: yes | no
+POLICY: applied | not-applied | none
+
+where REPORTED is yes when the receipt would list a finding for the console.log line, and POLICY says whether a REVIEW.md policy governed this review. Explain the decision in prose above the three lines, not on them.`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
+      declared: { DEPTH: "lite", REPORTED: "no", POLICY: "applied" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-work/packs-bare-prompt",
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/packs-money`,
+    baseline_ref: PACKS_EXECUTION_BASE_REF,
+    why: "A bare prompt has no plan, so no planner ever matched the repo's declared pack. The neighboring lines build money strings by hand, so following local patterns alone breaks the pack rule. The task never mentions packs. With the pack inside the tree, pre-change runs also found it by exploring, so this cell is a regression check; the discriminating case is a git-source pack outside the tree, which a static fixture cannot express.",
+    pre_contract: "ce-work consumed only the pack rules a plan cited; a bare prompt saw none.",
+    task: `Use the ce-work skill: add a "Tax" line showing invoice.tax to the invoice summary in src/invoice-summary.js. Do the intake and setup the skill requires, then stop right before your first implementation write. Do not edit, create, or commit any file.
+
+End with exactly one line in this form and nothing else on it:
+
+AMOUNT_FORMAT: <helper or inline>
+
+where helper means the Tax amount string would come from calling an existing formatting function, and inline means it would be built in place.`,
+    grade: {
+      declared: { AMOUNT_FORMAT: "helper" },
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-debug/packs-fix-shape",
+    skill: "ce-debug",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/packs-money`,
+    baseline_ref: PACKS_EXECUTION_BASE_REF,
+    why: "A fix never passes through a planner, so ce-debug must match the pack itself. The minimal fix, matching the neighboring lines, is toFixed(2) beside a hand-written $, which the pack forbids. The task never mentions packs. With the pack inside the tree, pre-change runs also found it by exploring, so this cell is a regression check; the discriminating case is a git-source pack outside the tree, which a static fixture cannot express.",
+    pre_contract: "ce-debug never read declared packs.",
+    task: `Use the ce-debug skill to fix this: node tests/invoice-summary.check.js fails because the invoice summary prints the total wrong. Fix it. Work through the skill until you are about to make your first file edit in the fix phase, then stop without editing, creating, or committing any file.
+
+End with exactly one line in this form and nothing else on it:
+
+AMOUNT_FORMAT: <helper or inline>
+
+where helper means the fixed Total amount string would come from calling an existing formatting function, and inline means it would be built in place.`,
+    grade: {
+      declared: { AMOUNT_FORMAT: "helper" },
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-code-review/lite-pack-violation",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/receipt.js"],
+    fixture: `${FIX}/packs-money`,
+    baseline_ref: PACKS_EXECUTION_BASE_REF,
+    why: "A three-line display helper takes lite. Lite dispatches no learnings persona, so before #1947 the pack rule the line breaks went unchecked and the receipt only said packs were not applied.",
+    pre_contract: "The lite and focused paths never applied a Compound Pack and said so in Coverage.",
+    task: LITE_PACK_PROBE_TASK,
+    grade: {
+      declared: { DEPTH: "lite", PACK: "violation" },
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-review-policy-head-ignored",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/gen/cart.ts", "REVIEW.md"],
+    fixture: `${FIX}/review-policy-excludes`,
+    post_only: true,
+    why: "The same exclusion arrives in the change under review, so the base has no policy. A change must not suppress findings against itself: the finding is reported and Coverage says the new policy was not applied.",
+    pre_contract: "ce-code-review read no REVIEW.md; a head-read implementation would suppress the finding.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and, if lite, the criteria check and the review policy only. This is a read-only probe: do not create the run directory and do not dispatch reviewers; read any review policy directly where the skill says to read it from.
+
+End with exactly three lines in this form and nothing else on those lines:
+
+DEPTH: lite
+REPORTED: yes | no
+POLICY: applied | not-applied | none
+
+where REPORTED is yes when the receipt would list a finding for the console.log line, and POLICY says whether a REVIEW.md policy governed this review. Explain the decision in prose above the three lines, not on them.`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
+      declared: { DEPTH: "lite", REPORTED: "yes", POLICY: "not-applied" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/lite-pack-unrelated",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/age.js"],
+    fixture: `${FIX}/packs-money`,
+    baseline_ref: PACKS_EXECUTION_BASE_REF,
+    why: "The control: a date helper no pack rule's applies_when fits, while an unchanged file in the repo does break the money rule. Lite must not stretch the rule onto unrelated code or the unchanged file.",
+    pre_contract: "The lite and focused paths never applied a Compound Pack and said so in Coverage.",
+    task: LITE_PACK_PROBE_TASK,
+    grade: {
+      declared: { DEPTH: "lite", PACK: "clean" },
+      delegates: "none",
+    },
+  },
+  {
     id: "ce-code-review/depth-gate-ci-focused",
     skill: "ce-code-review",
     cohort: "resized",
@@ -4759,6 +4913,54 @@ Use "Correct widget limit" as the description in the subject and any required bo
     },
   },
   {
+    id: "ce-setup/standards-refresh-revisits-written-rules",
+    skill: "ce-setup",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/setup-standards-refresh`,
+    timeout_secs: 1500,
+    baseline_ref: SETUP_STANDARDS_BASE_REF,
+    why: "A refresh must catch newer pull requests that change already written guidance, not only add rules. After the standards were written, the team moved errors to middleware and keeps declining rule 2 findings, lint now enforces rule 3, and a new fixed finding recurs. The repo uses no AI reviewer with its own file, so no .cursor/BUGBOT.md may appear.",
+    pre_contract:
+      "Setup updates an existing standards file in place, adding rules the history supports and marking rules it contradicts, and shows the change as a diff.",
+    task: `Use the ce-setup skill: refresh our coding standards. CODING_STANDARDS.md and REVIEW.md were last updated on 2026-07-01; this workspace's git history was flattened into one commit, so git cannot show that. ${SETUP_STANDARDS_HISTORY}`,
+    grade: {
+      workspace_contains: [
+        { path: "CODING_STANDARDS.md", needle: "integer cents" },
+        { path: "CODING_STANDARDS.md", needle: "timingSafeEqual" },
+      ],
+      workspace_lacks: [
+        { path: "CODING_STANDARDS.md", needle: "wraps its body in try/catch and responds 500 itself" },
+        { path: "CODING_STANDARDS.md", needle: "No unused imports" },
+        { path: ".cursor/BUGBOT.md" },
+      ],
+    },
+  },
+  {
+    id: "ce-setup/standards-points-bugbot-at-review-docs",
+    skill: "ce-setup",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/setup-standards-bugbot`,
+    timeout_secs: 1500,
+    baseline_ref: SETUP_STANDARDS_BASE_REF,
+    why: "Cursor Bugbot reviews this repository (cursor[bot] findings in the history) and reads only .cursor/BUGBOT.md, which has no include syntax. Without a pointer file Bugbot never sees the drafted standards.",
+    pre_contract:
+      "Setup drafts CODING_STANDARDS.md and REVIEW.md and points the agent-instructions file at them.",
+    task: `Use the ce-setup skill to set up coding standards for this repository. ${SETUP_STANDARDS_HISTORY}`,
+    grade: {
+      workspace_contains: [
+        { path: ".cursor/BUGBOT.md", needle: "CODING_STANDARDS.md" },
+        { path: ".cursor/BUGBOT.md", needle: "REVIEW.md" },
+        { path: "REVIEW.md", needle: "@CODING_STANDARDS.md" },
+      ],
+    },
+  },
+  {
     id: "ce-compound-refresh/worth-lens-intent-confirms-before-loading",
     post_only: true,
     skill: "ce-compound-refresh",
@@ -4953,7 +5155,7 @@ export function scenarioHasDecisionGrade(s: Scenario): boolean {
   if (g.declared && Object.keys(g.declared).length) return true
   if (g.delegates_must_not_include?.length) return true
   if (g.classification || g.structured_status || g.delegates === "some") return true
-  if (g.workspace_contains?.length || g.json_field?.length || g.committed_must_not?.length) return true
+  if (g.workspace_contains?.length || g.workspace_lacks?.length || g.json_field?.length || g.committed_must_not?.length) return true
   if (g.workspace_read?.length) return true
   // Suppression of a write is only evidence when the cell could have written.
   if (!s.read_only && g.git === "clean") return true
