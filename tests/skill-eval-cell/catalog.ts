@@ -26,6 +26,22 @@ export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
 export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e2632c"
 /** main after #1514 merged: the product-lens activation leg still read "alternatives plausibly exist". */
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
+/** main before ce-doc-review chose its own depth: every plan ran the full team, and adversarial fired on any plan without a brainstorm. */
+export const DOC_REVIEW_DEPTH_BASE_REF = "799ac9aeb97bf1c51238c38122915470413c26c5"
+/** main before reviewers and synthesis kept traced money, security, and stored-data harm the work newly reaches. */
+export const DOC_REVIEW_ADMISSION_BASE_REF = "9d04578ce9fad2347ae0cfd17e7678dcec99ee67"
+const docReviewFindingsTask = (args: string) =>
+  `Use ce-doc-review with the arguments: mode:non-interactive ${args}. End your final message with these lines and nothing after them: "FINDINGS:" followed by one line per finding the review raised or fixed, each starting with "- ", or the line "- none", then "TEAM: <comma-separated reviewer names you dispatched>".`
+const docReviewPersonaTask = (persona: string, plan: string) =>
+  `Use ce-doc-review's ${persona} reviewer on ${plan}. Read the skill's references/subagent-template.md, references/findings-schema.json, and references/personas/${persona}.md, then review the document as that reviewer would, reading the repository code as the template allows. Do not dispatch, edit anything, or invoke another skill. Return the reviewer's findings JSON, then end your final message with these lines and nothing after them: "FINDINGS:" followed by one line per finding in that JSON, each starting with "- " and giving its title, then " — ", then the input and the harm it names in a few words, or the line "- none".`
+export const CODE_REVIEW_PRE_EXISTING_BASE_REF = "4fb543be706b19b4df14fbf69a58e458bed037e6"
+/** main after #2013: a stub on a traced money path still read to Codex as something that might block the harm. */
+export const DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF = "4fb543be706b19b4df14fbf69a58e458bed037e6"
+/** main after #2003: adversarial and the lite reviewer still sent a plan full for a product choice no requester made. */
+export const DOC_REVIEW_PROVENANCE_BASE_REF = "b8841ebab4d2105b9eaeeb26645424173cd452f4"
+/** Depth scenarios grade the depth and team decision from trailers; they do not prove a reviewer actually ran. */
+const docReviewDepthTask = (plan: string) =>
+  `Use ce-doc-review with the arguments: mode:non-interactive ${plan}. End your final message with two lines and nothing after them: "TEAM: <comma-separated reviewer names you dispatched>" and then "DEPTH: <the review depth this run's result records, or full if it records none>".`
 /** main before Goal Capsule required a holdable goal, not only a user-checkable outcome. */
 export const HOLDABLE_OBJECTIVE_BASE_REF = "0e758b60b35cec165470443fde5acf60db8bdae9"
 const PLAN_CONTENT_BASE_REF = "5c32ef92339b95348d6a12000e814d4877902557"
@@ -104,6 +120,8 @@ export type Grade = {
    * so declaring nothing cannot pass.
    */
   must_include_field?: string
+  /** Text that must be absent from the must_include_field block. The run fails when it emitted no such field, so staying silent cannot pass. */
+  field_must_not_include?: string[]
   /**
    * Exactly one `LABEL: value` line anywhere in the answer, per label (heading and bold
    * decoration ignored, label and value case-insensitive), with the exact value. Zero
@@ -182,6 +200,13 @@ export type Scenario = {
   shim_gh_pr?: boolean
   /** Configure a fake `origin` whose `main` is the seed commit, so the shipping tail takes the push/PR path instead of the local-commit path. Pair with shim_git_push. */
   git_remote?: boolean
+  /** Fixture paths left out of the workspace, so one fixture can serve stages that must not see each other's inputs. */
+  fixture_omit?: string[]
+  /**
+   * A fixture-relative patch committed on `branch` over the seed with `message`, so a review cell
+   * sees a branch diff whose only stated intent is the commit message. `origin/main` stays at the seed.
+   */
+  git_change?: { patch: string; branch: string; message: string }
   fixture?: string
   timeout_secs?: number
   why: string
@@ -1042,6 +1067,103 @@ const VISUAL_EVIDENCE_ROWS: Scenario[] = (
     },
   ] satisfies VisualEvidenceCase[]
 ).map(visualEvidenceRow)
+
+/** Issue number -> status, close-out, plan after one sweep of fixtures/sweep-closed-at-source. */
+const SWEEP_CLOSED_AT_SOURCE_OUTCOMES: Record<number, [string, string, string]> = {
+  100: ["acknowledged", "no", "open"], // reopened
+  101: ["closed", "yes", "drained"], // completed, merged closing PR
+  102: ["source_closed", "no", "drained"], // NOT_PLANNED with a merged stored ref
+  103: ["source_closed", "no", "drained"], // completed, no ref at all
+  104: ["acknowledged", "no", "open"], // still open
+  105: ["source_closed", "no", "drained"], // closing PR in another repository
+  106: ["closed", "yes", "drained"], // unmerged stored ref, merged closing PR
+  107: ["source_gone", "no", "drained"], // issue does not resolve
+  108: ["in_plan", "no", "open"], // gh pr view failed
+  109: ["closed", "yes", "drained"], // verifiable after that failure, which stops nothing
+  110: ["closed", "yes", "drained"], // stored SHA merged on GitHub, local main stale
+  111: ["in_plan", "no", "open"], // rate-limited lookup
+  112: ["acknowledged", "no", "open"], // closed, but after checks stopped
+  113: ["source_closed", "no", "drained"], // closed public issue; stored number belongs to another host
+  114: ["fix_pending", "no", "open"], // open public issue; same stored-number collision
+}
+
+function boundaryDiagnosticScenarios(): Scenario[] {
+  const fixture = `${FIX}/boundary-release-before-paid`
+  const plans = {
+    named: "docs/plans/2026-11-04-1000-feat-zoom-details-confirmation-plan.md",
+    unnamed: "docs/plans/2026-11-04-1100-feat-confirmation-email-zoom-fields-plan.md",
+    routine: "docs/plans/2026-11-04-1200-feat-receipt-event-start-plan.md",
+  }
+  const base = {
+    cohort: "untouched" as const,
+    key_behavior: "judgment" as const,
+    read_only: false,
+    git_init: true,
+    fixture,
+    post_only: true,
+    pre_contract: "Diagnostic only: no prior contract is under test.",
+  }
+  const rawReturns = "Save each reviewer's raw return, verbatim and before any synthesis, to .eval-raw/<reviewer-name>.md in this repo."
+  const docReview = (id: string, plan: string, why: string): Scenario => ({
+    ...base,
+    id: `ce-doc-review/boundary-${id}`,
+    skill: "ce-doc-review",
+    fixture_omit: ["patches"],
+    timeout_secs: 1500,
+    why,
+    task: `Use ce-doc-review with the arguments: mode:non-interactive ${plan}. ${rawReturns} End your final message with one line of the form "TEAM: <comma-separated reviewer names you dispatched>" and nothing after it.`,
+    grade: { must_include: ["coherence"], workspace_tree: [{ dir: ".eval-raw", contains: "" }] },
+  })
+  const codeReview = (id: string, patch: string, branch: string, message: string, why: string): Scenario => ({
+    ...base,
+    id: `ce-code-review/boundary-${id}`,
+    skill: "ce-code-review",
+    fixture_omit: ["docs/plans", "patches"],
+    git_remote: true,
+    git_change: { patch: `patches/${patch}`, branch, message },
+    timeout_secs: 2400,
+    why,
+    task: "Use ce-code-review with mode:agent on the current branch against main. When the review finishes, copy its whole run directory, including review.json and every reviewer's raw return, to .eval-run/ in this repo. Do not edit any other file.",
+    grade: { workspace_contains: [{ path: ".eval-run/review.json", needle: "\"verdict\"" }] },
+  })
+  return [
+    {
+      ...base,
+      id: "ce-plan/boundary-fresh-plan",
+      skill: "ce-plan",
+      with_skill: ["ce-doc-review"],
+      fixture_omit: ["docs/plans", "patches"],
+      timeout_secs: 3600,
+      why: "Discovery stage: whether planning the Zoom request from the code alone surfaces that the confirmation email goes out before payment.",
+      task: `Use ce-plan with mode:pipeline for this request: Add a Zoom link and passcode to guest confirmation emails. If the run invokes ce-doc-review, have it save each reviewer's raw return, verbatim and before any synthesis, to .eval-raw/<reviewer-name>.md in this repo. Do not implement the plan. End your final message with two lines: "PLAN: <plan path>" and "TEAM: <comma-separated doc-review reviewer names, or none>".`,
+      grade: { must_include: ["coherence"], workspace_tree: [{ dir: "docs/plans", contains: "Zoom" }] },
+    },
+    docReview("named-plan", plans.named, "Persona selection and finding on a plan that states the email is sent while the registration is pending payment."),
+    docReview("unnamed-plan", plans.unnamed, "Persona selection and finding on a plan whose diff crosses the payment boundary but never names payment or timing."),
+    docReview("routine-plan", plans.routine, "Control: a receipt-email change after payment, with no boundary to find."),
+    codeReview(
+      "framed",
+      "zoom-in-confirmation.patch",
+      "feat/zoom-in-confirmation",
+      "feat(emails): add Zoom link and passcode to guest confirmation email\n\nGuests now receive the Zoom link and passcode in the confirmation email sent when they register, so they have everything they need to join.\n",
+      "Code-review stage with the plan's framing in the commit message, testing whether the stated intent anchors reviewers away from the boundary.",
+    ),
+    codeReview(
+      "neutral",
+      "zoom-in-confirmation.patch",
+      "update-emails",
+      "update emails.js\n",
+      "Code-review stage on the same diff with a neutral commit message and no stated intent.",
+    ),
+    codeReview(
+      "routine",
+      "receipt-start-time.patch",
+      "feat/receipt-start-time",
+      "feat(emails): add event start time to receipt email\n",
+      "Control: a receipt change sent after payment, with no boundary to find.",
+    ),
+  ]
+}
 
 export const SCENARIOS: Scenario[] = [
   ...VISUAL_EVIDENCE_ROWS,
@@ -3441,6 +3563,41 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     },
   },
   ...IDEATE_RUN_SCALING,
+  ...[
+    {
+      name: "unchanged-inputs",
+      evidence: "The implementation phase ran the project's selected test suite and typecheck successfully. The recorded commands, selection base, tested files, dependencies, configuration, and environment match the current candidate. Only the commit message was amended afterward. Neither check reads commit metadata.",
+      decision: "reuse",
+    },
+    {
+      name: "changed-inputs",
+      evidence: "The implementation phase ran the project's selected test suite and typecheck successfully. Review then changed a source file covered by those checks. The fix is now committed. No check has run since that edit.",
+      decision: "rerun",
+    },
+    {
+      name: "metadata-input",
+      evidence: "The project requires a check of the current commit's message. It passed on the previous message. The only subsequent change is an amended commit message, and the message check has not run again.",
+      decision: "rerun",
+    },
+    {
+      name: "masked-failure",
+      evidence: "The project requires the selected test suite before publishing. Its last run used `bun run test 2>&1 | tail -8` in a shell without pipefail. The shell returned 0, but the captured runner output reports an assertion failure and 1 failed test. There is no later passing run.",
+      decision: "blocked",
+    },
+  ].map(({ name, evidence, decision }): Scenario => ({
+    id: `ce-commit-push-pr/publishing-evidence-${name}`,
+    baseline_ref: "a76c45cef80bc5564a4fc7c06614ed278e4c3736",
+    skill: "ce-commit-push-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/tiny-lib`,
+    why: "Publishing must reuse valid verification without accepting stale evidence or a formatter's successful exit after a test failure.",
+    pre_contract: "Project publishing requirements need successful evidence valid for the exact state being sent. Resolve this gate before publishing.",
+    task: `Use ce-commit-push-pr in mode:pipeline. We are at the project publishing gate, before any external write. The project accepts its shared CI test selection locally and does not require a separate full-suite run. ${evidence}
+Resolve only this gate; do not execute checks or publish. End with CHECKS: reuse, rerun, or blocked, where reuse means the existing results satisfy the gate, rerun means evidence is stale, and blocked means a required check failed. Explain the evidence behind your decision.`,
+    grade: { declared: { CHECKS: decision }, actions: "none" },
+  })),
   {
     id: "ce-commit-push-pr/project-publishing-gate",
     post_only: true,
@@ -5119,6 +5276,484 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     },
   },
   {
+    id: "ce-doc-review/depth-lite-routine-flag",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-json-flag`,
+    timeout_secs: 1500,
+    why: "A requested CLI flag on an existing command crosses no boundary, so one combined reviewer covers it.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-001-feat-list-json-flag-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-keyword-control",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-keyword-control`,
+    timeout_secs: 1500,
+    why: "A routine fix whose prose says deferred and who can: the trigger is the property, not the words.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-002-fix-skip-empty-report-sections-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-brainstorm-origin",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-brainstorm-origin`,
+    timeout_secs: 1500,
+    why: "A brainstorm-sourced routine fix with settled decisions stays lite.",
+    pre_contract: "Every plan runs the full team.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-003-fix-export-filename-collisions-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-ordinary-profile-read",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-profile-read`,
+    timeout_secs: 1500,
+    why: "Over-escalation control: reading a non-sensitive display name is ordinary data handling, not a security boundary, so the plan stays lite.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-004-feat-display-name-in-status-header-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-passcode-payment",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-passcode-payment`,
+    timeout_secs: 1500,
+    why: "Emailing a meeting passcode in an app that takes payment crosses money and sensitive-data boundaries; full review with its challenge lenses must stay.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-005-feat-email-zoom-passcode-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+      must_include: ["security-lens", "adversarial"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-sweep-billing",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-sweep-billing`,
+    timeout_secs: 1500,
+    why: "A sweep plan whose second item retries an invoice charge crosses a money boundary even beside a typo fix.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-006-fix-sweep-help-typo-and-charge-timeout-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+      must_include: ["adversarial"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-unstated-payment",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-unstated-payment`,
+    timeout_secs: 1500,
+    why: "The plan never says payment, but the handler it edits marks a booking paid; the bounded read of named code must still choose full.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-007-feat-booking-confirmation-email-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-denied-payment",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-denied-payment`,
+    timeout_secs: 1500,
+    why: "The plan says it does not involve payments, but the retry limit it raises gates a handler that charges the card on every attempt; the plan's own claim must not buy lite.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-014-feat-order-retry-limit-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-token-withdrawal",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-token-withdrawal`,
+    timeout_secs: 1500,
+    why: "The plan never says payment, but its command moves a user's token balance to an outside wallet; money moved by any name runs full.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-015-feat-withdraw-command-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+    },
+  },
+  {
+    id: "ce-doc-review/findings-keep-traced-money-harm",
+    baseline_ref: DOC_REVIEW_ADMISSION_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-token-withdrawal`,
+    timeout_secs: 1800,
+    why: "The withdraw command newly exposes an existing transfer to users: a negative amount passes the balance check and raises the balance, and read-broadcast-write lets concurrent withdrawals spend twice. Both trace from a CLI input to lost money even though the code already exists and the chain adapter is a stub.",
+    pre_contract: "Codex reviewers suppressed both as pre-existing or without a realistic exploit path, and Codex synthesis rejected peer money findings as derivable.",
+    task: docReviewFindingsTask("docs/plans/2026-11-01-015-feat-withdraw-command-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [
+        ["negative", "non-positive", "nonpositive", "positive amount", "amount > 0", "amount <= 0", "greater than zero", "zero or less"],
+        ["concurren", "double-spend", "double spend", "race", "atomic", "spend twice", "twice"],
+      ],
+    },
+  },
+  {
+    id: "ce-doc-review/findings-quiet-on-unreached-code",
+    baseline_ref: DOC_REVIEW_ADMISSION_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-findings-quiet-flag`,
+    timeout_secs: 1800,
+    why: "Guard for the money/security admission rule: a sound --json flag plan, reviewed by the full team, next to store code it never calls (saveTasks, archiveDone, which corrupts its archive). Harm in code the work does not reach, and extra error handling, stay out.",
+    pre_contract: "Pre-existing issues the document did not introduce are suppressed.",
+    task: docReviewFindingsTask("depth:full docs/plans/2026-11-01-001-feat-list-json-flag-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      field_must_not_include: ["savetasks", "archivedone", "archive", "enoent"],
+    },
+  },
+  {
+    id: "ce-doc-review/reviewer-security-keeps-traced-money-harm",
+    baseline_ref: DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/doc-review-depth-token-withdrawal`,
+    timeout_secs: 900,
+    why: "The orchestrator-level money scenario passed mostly on main because other reviewers or synthesis caught what one reviewer dropped. This grades the security reviewer's own return on the withdraw plan: the negative amount and the double-spend both trace from a CLI input to lost money.",
+    pre_contract: "The Codex security reviewer saw the negative amount in 3 of 3 runs and dropped it each time because the chain client is a stub that might reject it, even though nothing in the plan or code says it does.",
+    task: docReviewPersonaTask("security-lens-reviewer", "docs/plans/2026-11-01-015-feat-withdraw-command-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [
+        ["negative", "positive", "amount > 0", "amount <= 0", "greater than zero", "zero or less"],
+        ["concurren", "double-spend", "double spend", "race", "atomic", "spend twice", "twice"],
+      ],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-doc-review/reviewer-adversarial-quiet-on-unreached-code",
+    baseline_ref: DOC_REVIEW_ADMISSION_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/doc-review-findings-quiet-flag`,
+    timeout_secs: 900,
+    why: "Guard for the reviewer-level money and stored-data rule: the adversarial reviewer, the one most likely to chase bait, must not report the archive corruption in store code the --json flag plan never calls.",
+    pre_contract: "Pre-existing issues the document did not introduce are suppressed.",
+    task: docReviewPersonaTask("adversarial-document-reviewer", "docs/plans/2026-11-01-001-feat-list-json-flag-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      field_must_not_include: ["savetasks", "archivedone", "archive", "enoent"],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/newly-exposed-existing-bug-is-primary",
+    baseline_ref: CODE_REVIEW_PRE_EXISTING_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/review-newly-exposed-credit`,
+    timeout_secs: 300,
+    why: "A new refund command passes a staff-typed amount into an existing creditAccount that never checks its sign, so a negative or non-numeric refund silently debits or corrupts the balance. The bug sits in unchanged code but this PR newly exposes it, so it is this PR's finding. The unrelated month-label bug in unchanged report code is bait for the opposite direction.",
+    pre_contract: "Anchor 0 covered 'a pre-existing issue this PR did not introduce' and said to suppress it silently.",
+    task: "Use ce-code-review's correctness reviewer on the change described in PR.md. The changed file is src/cli/refund.ts, entirely new in this PR; every other file is unchanged. Read the skill's references/subagent-template.md, references/diff-scope.md, and references/personas/correctness-reviewer.md and review the change as that persona would. Do not dispatch, edit anything, or invoke another skill. Return the persona's findings JSON, then exactly one line `AMOUNT: <primary | pre-existing | not-flagged>`: primary when a finding at confidence 75 or higher with pre_existing false says a negative or invalid refund amount reaches the balance, pre-existing when such a finding has pre_existing true, otherwise not-flagged.",
+    grade: {
+      workspace_read: ["src/billing/credit.ts"],
+      declared: { AMOUNT: "primary" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-unstated-session",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-unstated-session`,
+    timeout_secs: 1500,
+    why: "The plan never says auth, but the function it edits signs session tokens; security-lens must activate from the named code.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-008-feat-longer-remember-me-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+      must_include: ["security-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-escalates-other-users-records",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-escalation`,
+    timeout_secs: 1500,
+    why: "The plan reads routine, but its query drops the per-user filter and returns other customers' bookings; the run must decide full with security-lens on the team, whether the gate or an escalation got it there.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-009-feat-recent-bookings-card-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+      must_include: ["security-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-unmade-product-choice",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-unmade-choice`,
+    timeout_secs: 1500,
+    why: "The plan crosses no boundary, but it adds a streak and defers a streak freeze that the request never asked for; product-lens judges that unrequested position and keeps the review full. Adversarial may also fire on scope extension, but the grade does not depend on that reading.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-012-feat-tasks-stats-command-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+      must_include: ["product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-public-contract-rename",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-contract-rename`,
+    timeout_secs: 1500,
+    why: "The requester asked for the rename, but it breaks a documented JSON field that scripts read; a public-contract break keeps full review with adversarial even when the choice was made.",
+    pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-013-refactor-rename-done-field-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+      must_include: ["adversarial"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-planner-assumptions",
+    baseline_ref: DOC_REVIEW_PROVENANCE_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-jot-assumptions`,
+    timeout_secs: 1500,
+    why: "A hands-off lfg plan for jot edit/delete lists its ordinary calls (id reuse fix, usage errors, silent success, refusing an ambiguous id) under Assumptions; who made a call is not a consequence, so it stays lite.",
+    pre_contract: "Adversarial and the lite reviewer send a plan full for a product choice that no requester, upstream contract, or settled decision made.",
+    task: docReviewDepthTask("docs/plans/2026-11-04-2335-feat-note-edit-delete-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-planner-requirements",
+    baseline_ref: DOC_REVIEW_PROVENANCE_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-jot-requirements`,
+    timeout_secs: 1500,
+    why: "The same jot edit/delete calls written as requirements stay lite.",
+    pre_contract: "Adversarial and the lite reviewer send a plan full for a product choice that no requester, upstream contract, or settled decision made.",
+    task: docReviewDepthTask("docs/plans/2026-11-04-2331-feat-note-edit-delete-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-planner-decisions",
+    baseline_ref: DOC_REVIEW_PROVENANCE_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-jot-decisions`,
+    timeout_secs: 1500,
+    why: "The same jot edit/delete calls written as key technical decisions stay lite.",
+    pre_contract: "Adversarial and the lite reviewer send a plan full for a product choice that no requester, upstream contract, or settled decision made.",
+    task: docReviewDepthTask("docs/plans/2026-11-04-2335-feat-note-edit-delete-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-zoom-confirmation",
+    baseline_ref: DOC_REVIEW_PROVENANCE_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-zoom-confirmation`,
+    timeout_secs: 1500,
+    why: "A hands-off lfg plan emails a paid session's join link and passcode on payment and refuses a second payer; access and money keep full review with security-lens without the product-choice leg.",
+    pre_contract: "Adversarial and the lite reviewer send a plan full for a product choice that no requester, upstream contract, or settled decision made.",
+    task: docReviewDepthTask("docs/plans/2026-11-04-2332-feat-booking-confirmation-email-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+      must_include: ["security-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-requirements-doc-unchanged",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-requirements-doc`,
+    timeout_secs: 1500,
+    why: "Depth applies to plans only; a requirements document keeps today's selection, including adversarial on its challengeable claims.",
+    pre_contract: "Requirements documents with challengeable claims activate adversarial.",
+    task: docReviewDepthTask("docs/plans/2026-11-01-010-feat-team-workspaces-requirements.md"),
+    grade: {
+      declared: { DEPTH: "full" },
+      must_include: ["adversarial"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-finds-seeded-defect",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-seeded-defect`,
+    timeout_secs: 1500,
+    why: "Non-inferiority: a routine test-only plan whose unit edits production code; the lite reviewer must still report the contradiction the full team reports.",
+    pre_contract: "The full team reports the contradiction between the test-only decision and the production edit.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-11-01-011-fix-slug-test-coverage-plan.md. End your final message with these lines and nothing after them: "FINDINGS:" followed by one line per finding the review raised or fixed, then "TEAM: <comma-separated reviewer names you dispatched>", then "DEPTH: <the review depth this run's result records, or full if it records none>".`,
+    grade: {
+      must_include_field: "FINDINGS",
+      declared: { DEPTH: "lite" },
+      must_include_any: [
+        ["slug.ts", "slugify", "trim", "u1"],
+        ["ktd1", "r2", "production code", "test-only", "no edits under"],
+      ],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-later-round-keeps-lite",
+    baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-json-flag`,
+    timeout_secs: 2400,
+    why: "A lite first round followed by ce-plan's re-invocation after a correction reruns the lite pass and still records lite, rather than rerunning reviewers by changed lens.",
+    pre_contract: "A later round reruns the reviewers whose lens covers what changed, from the full team.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-11-01-001-feat-list-json-flag-plan.md. When it returns, act as ce-plan does after a correction: add the test scenario "--json with no open tasks prints an empty array" to U1, then invoke ce-doc-review again with the arguments mode:non-interactive docs/plans/2026-11-01-001-feat-list-json-flag-plan.md and this permission: "Apply corrections to this draft's implementation and verification sections needed to satisfy its established Product Contract." End your final message with two lines and nothing after them, both describing the second invocation: "TEAM: <comma-separated reviewer names it dispatched>" and then "DEPTH: <the review depth its result records, or full if it records none>".`,
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
     id: "ce-doc-review/peer-outcome-folded",
     post_only: true,
     skill: "ce-doc-review",
@@ -5196,6 +5831,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
       must_include: ["Review complete"],
     },
   },
+  ...boundaryDiagnosticScenarios(),
   {
     id: "ce-brainstorm/lightweight-ends-in-chat",
     baseline_ref: RIGHT_SIZE_BASE_REF,
@@ -5877,7 +6513,6 @@ Use "Correct widget limit" as the description in the subject and any required bo
       workspace_read: ["AGENTS.md"],
       must_include: [
         "docs/solutions/  # documented solutions to past problems",
-        "Add a standing instruction so agents capture qualifying learnings with ce-compound?",
         "After a solved, verified problem, automatically invoke the `ce-compound` skill with `mode:non-interactive`",
       ],
       actions: "none",
@@ -6065,6 +6700,47 @@ Use "Correct widget limit" as the description in the subject and any required bo
     },
   },
   {
+    id: "ce-compound/refresh-worth-vacuous-check-is-not-coverage",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/refresh-worth-vacuous-check`,
+    timeout_secs: 900,
+    why: "A lint rule whose message states a doc's reasoning but whose selector matches code that no longer exists (cache.set became cache.put) is not coverage, so the doc survives and the rule is reported for retargeting without being edited. Claude and Codex both held this on a3bcedfc7 with no prose for it, so the row guards the behavior rather than measuring a change.",
+    pre_contract:
+      "Recoverability needs positive evidence: a named in-repo artifact whose own text states the reasoning. A refresh writes no checks.",
+    task: "Use the ce-compound skill mode:refresh on the workflow category. Report each doc's verdict with its evidence, and list which skill files you read. Do not write anything. End with exactly two lines in this form and nothing else on those lines:\n\nDOC_DELETED: <yes or no, for write-prices-through-store.md>\nCHECK_TO_CHANGE: <path of a test or lint rule your report recommends changing, or none>",
+    grade: {
+      files_read_post: ["references/refresh/worth-audit.md"],
+      workspace_read: ["eslint.config.js"],
+      declared: { DOC_DELETED: "no", CHECK_TO_CHANGE: "eslint.config.js" },
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-compound/refresh-worth-obsolete-check-recommends-removal",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/refresh-worth-obsolete-check`,
+    timeout_secs: 900,
+    why: "The price cache is gone: src/ reads and writes prices straight from the database. A lint rule that bans direct cache writes, with an invalidation message, now guards a mechanism that no longer exists. A refresh writes no checks, so it should recommend removing the rule rather than retargeting it, and edit nothing. Claude and Codex both held this on 33047b92f with no prose for it (2 trials each), so the row guards the behavior rather than measuring a change.",
+    pre_contract: "A refresh writes no checks. A doc whose mechanism no longer exists is judged by the ordinary Delete gate.",
+    task: "Use the ce-compound skill mode:refresh on the workflow category. Report each doc's verdict with its evidence, and list which skill files you read. Do not write anything. End with exactly two lines in this form and nothing else on those lines:\n\nCHECK_TO_CHANGE: <path of a test or lint rule your report recommends changing, or none>\nCHECK_ACTION: <remove, retarget, or none, for that check>",
+    grade: {
+      files_read_post: ["references/refresh/worth-audit.md"],
+      workspace_read: ["eslint.config.js"],
+      declared: { CHECK_TO_CHANGE: "eslint.config.js", CHECK_ACTION: "remove" },
+      actions: "none",
+    },
+  },
+  {
     id: "ce-code-review/antigravity-last-automatic-target",
     skill: "ce-code-review",
     cohort: "untouched",
@@ -6167,6 +6843,61 @@ Use "Correct widget limit" as the description in the subject and any required bo
       delegates: "none",
     },
   },
+  {
+    id: "ce-sweep/closed-at-source-reconciles",
+    skill: "ce-sweep",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    baseline_ref: "406b85c4562de3d415927fccc5e614c6554aab00",
+    fixture: `${FIX}/sweep-closed-at-source`,
+    why: "Issue #1768: the fetch reads open issues only and 2f read only fix_pending items, so an acknowledged issue closed at the source stayed in the plan forever. One fixture holds the main by-id outcomes and fix-verification paths, including a stale local default branch, a gh pr view failure ahead of a verifiable issue, and a rate-limited lookup ahead of a later closed issue.",
+    pre_contract: "A completed close with a verified merge closes with evidence and gets the close-out, trying same-repository closing PRs when the stored ref does not verify. Any other close, or a read showing no merge, is source_closed with no close-out, and both drain. An open issue or a failed lookup changes nothing, and a failed issue lookup stops checks for that source. A missing issue is source_gone. A reopened source_closed item returns to acknowledged.",
+    task: `Use the ce-sweep skill with mode:non-interactive for one sweep of this repository. GitHub, subagents, and the state engine are not available in this session, so run nothing and write nothing. Work out what the run would do from the files.
+
+The default GitHub host (GH_HOST) is github.example.com. The default branch is main, and local main is 25 commits behind the remote. canned/fetch.json is what the gh-issues connector returned at 2b; gh-public returned no new items. Both sources are readable. Each canned command with an explicit repository selects that exact host and repository; legacy bare commands use the checkout for PR reads. canned/gh-outputs.json holds the output each gh or git command would give this run, keyed by command. The run works through items in id order. Assume the lease is yours, validate downgraded nothing, the source has no media, and every ack and close-out write confirms on read-back.
+
+End with these lines for each issue n from 100 to 114, in plain text with no backticks:
+
+ITEM_<n>: <the item's status in the state file after this run>
+CLOSEOUT_<n>: <yes if the run performs the close-out action on the issue, otherwise no>
+PLAN_<n>: <open if the plan lists the item after this run, otherwise drained>
+
+For each item whose status is closed after this run, also end with:
+
+MERGE_SHA_<n>: <the verified_merge_sha this run records>
+
+Also declare the resulting fields (null as the literal null):
+FIX_REF_100: <fix_ref>
+FIX_REF_102: <fix_ref>
+REQUIREMENT_ID_100: <requirement_id>
+REQUIREMENT_ID_102: <requirement_id retained after drainage>
+COMPARE_HOST: <hostname receiving both the SHA compare and its control>`,
+    grade: {
+      files_read_post: ["references/run.md"],
+      workspace_read: ["canned/gh-outputs.json"],
+      declared: {
+        ...Object.fromEntries(
+          Object.entries(SWEEP_CLOSED_AT_SOURCE_OUTCOMES).flatMap(([n, [item, closeout, plan]]) => [
+            [`ITEM_${n}`, item],
+            [`CLOSEOUT_${n}`, closeout],
+            [`PLAN_${n}`, plan],
+          ]),
+        ),
+        FIX_REF_100: "null",
+        FIX_REF_102: "null",
+        REQUIREMENT_ID_100: "R20",
+        REQUIREMENT_ID_102: "R3",
+        COMPARE_HOST: "github.example.com",
+        MERGE_SHA_101: "9f3c2ab14e7d60b85c1f4a2e6d0b7c3e8a5d1f42",
+        MERGE_SHA_106: "c41d7f2e8b03a96d5e1f7c4b2a08d3e6f9b5a723",
+        MERGE_SHA_109: "e08b3f61d7c24a95b1e6d0f7a3c9852b4d16f0ca",
+        MERGE_SHA_110: "7d2e91c4a0b36f58e1c7d4a29b60f3e8c5a1d7b3",
+      },
+      actions: "none",
+    },
+  },
 ]
 
 export function scenarioById(id: string): Scenario | undefined {
@@ -6199,6 +6930,7 @@ export function scenarioHasDecisionGrade(s: Scenario): boolean {
   if (g.must_include?.length || g.must_include_any?.length || g.must_exclude?.length) return true
   if (g.declared && Object.keys(g.declared).length) return true
   if (g.delegates_must_not_include?.length) return true
+  if (g.must_include_field && g.field_must_not_include?.length) return true
   if (g.classification || g.structured_status || g.delegates === "some") return true
   if (g.workspace_contains?.length || g.workspace_lacks?.length || g.json_field?.length || g.committed_must_not?.length) return true
   if (g.workspace_read?.length) return true

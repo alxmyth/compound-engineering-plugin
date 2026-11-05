@@ -59,6 +59,10 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-commit-push-pr/never-add-all` | `.env` not staged or committed |
 | `ce-commit-push-pr/unknown-is-not-no-pr` | `gh pr` is shimmed to fail; must not `gh pr create` |
 | `ce-commit-push-pr/project-publishing-gate` | Project-defined gate ran against the committed state before the push attempt |
+| `ce-commit-push-pr/publishing-evidence-unchanged-inputs` | Read-only gate decision: reuse successful checks after a message-only amendment when neither check reads metadata |
+| `ce-commit-push-pr/publishing-evidence-changed-inputs` | Read-only gate decision: rerun checks after a covered source edit |
+| `ce-commit-push-pr/publishing-evidence-metadata-input` | Read-only gate decision: rerun a message check after amending its input |
+| `ce-commit-push-pr/publishing-evidence-masked-failure` | Read-only gate decision: block when a successful output pipeline masks a failed required test |
 | `ce-handoff/resume-asks-does-not-act` | Did not continue the previous agent's work |
 | `ce-code-review/report-only-default` | Reported; `src/greet.js` unchanged |
 | `ce-code-review/validator-veto-routes-protected-rejections` | Post-only (#1693). Uncited and framework-assumption protected rejections become unresolved gates, a verified cited rejection and a naming preference drop, a rejection citing a guard line that does not exist stays a gate, the confirmed P0 stays actionable, the budget-timeout P2 leaves for Coverage |
@@ -144,6 +148,18 @@ bun run test:skill-eval-pack -- --skill ce-babysit-pr --arm ab
 | `ce-babysit-pr/invariant-third-round-routes-trajectory` | `invariant_rounds` at 2 → pass the trajectory before the resolver may fix |
 | `ce-babysit-pr/manual-root-behind-updates-target-only` | Manual-chain root BEHIND → claimed `update-branch` on the target, dependents untouched |
 | `ce-babysit-pr/checkpoint-resume-keeps-posture` | Checkpoint resume invocation keeps the `posture:` token |
+
+## ce-sweep (post-only; the baseline has no `source_closed` status)
+
+Read-only over canned `gh` output in `fixtures/sweep-closed-at-source`. `declared` grades the status, close-out, and plan decision for each issue, plus the merge SHA of each `closed` item, invalidation of old fix claims, retained requirement IDs, and full repository identity. The fixture includes foreign-host closing PRs and stored PR-number collisions for both open and completed issues, alongside same-host successes.
+
+```bash
+bun run test:skill-eval-pack -- --id ce-sweep/closed-at-source-reconciles --arm post
+```
+
+| ID | Pre-contract |
+|---|---|
+| `ce-sweep/closed-at-source-reconciles` | Completed close with a verified merge -> `closed`, trying same-repository closing PRs after a stored ref fails; any other close or no merge -> `source_closed`, no close-out; both drain. Missing issue -> `source_gone`. Open or failed lookup -> unchanged, and a failed issue lookup stops that source. Reopened -> `acknowledged` (#1768) |
 
 ## Named gaps
 
