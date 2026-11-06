@@ -75,6 +75,8 @@ const SIGNAL_NULL = [['"prevention_signal": null', '"prevention_signal":null']]
 export const RELIABILITY_CONTEXT_BASE_REF = "8d9a236dc91b17e114562bd65e9e137d171f39ab"
 /** main before ce-work dropped its goal/workflow engines, ran chained units inline, and ce-plan stopped offering /goal. */
 const WORK_ENGINES_BASE_REF = "030188b4ba27f2dc33fbc4d5a112d3c8cc893e8c"
+/** main before ce-work re-read return-to-caller.md only after compaction and fixed the native route fields to nulls. */
+const WORK_RETURN_BASE_REF = "7dc50943bbf959dbe6a93a175e41e5fff8395e00"
 /** main before the Antigravity cross-model peer route and the codex, claude, grok, antigravity automatic order. */
 const ANTIGRAVITY_PEER_BASE_REF = "bdc53d034ccfa5baf01b6139cd46082145ff95cc"
 /** main before the mode:agent JSON carried the cross-model peer outcome: the A/B base for the peer-outcome rows. */
@@ -894,6 +896,91 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
 const SETUP_STANDARDS_BASE_REF = "121a3bd60d296be72b2d3c0b08131b7b08fadc5a"
 const SETUP_STANDARDS_HISTORY =
   "The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation). I approve every draft and change you preview: write them all without asking me again, and do not commit."
+
+const SETUP_UNATTENDED_HISTORY =
+  "CODING_STANDARDS.md and REVIEW.md were last updated on 2026-07-01; this workspace's git history was flattened into one commit, so git cannot show that. The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation)."
+const SETUP_UNATTENDED_PRE = "Setup previews every standards change and writes only on the user's approval."
+
+/** A publishing row runs the real ce-commit-push-pr against the push and PR shims; an attended row probes for any handoff instead. */
+function setupUnattendedRow(name: string, why: string, task: string, grade: Grade, fixture = "setup-standards-refresh", publishes = true): Scenario {
+  return {
+    id: `ce-setup/${name}`,
+    post_only: true,
+    skill: "ce-setup",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    git_remote: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    ...(publishes ? { with_skill: ["ce-commit-push-pr"] } : { handoff_probe: ["ce-commit-push-pr", "ce-commit"] }),
+    fixture: `${FIX}/${fixture}`,
+    timeout_secs: 1500,
+    why,
+    pre_contract: SETUP_UNATTENDED_PRE,
+    task,
+    grade,
+  }
+}
+
+const SETUP_UNATTENDED_ROWS: Scenario[] = [
+  setupUnattendedRow(
+    "unattended-token-refresh-publishes",
+    "The token alone makes the refresh unattended: it writes the supported changes and hands publishing to ce-commit-push-pr in pipeline mode instead of asking.",
+    `Use the ce-setup skill with these arguments: standards mode:non-interactive. ${SETUP_UNATTENDED_HISTORY}`,
+    {
+      committed_must: ["CODING_STANDARDS.md"],
+      must_include: ["ce-setup/refresh-"],
+      must_include_any: [["Setup complete:", "Setup skipped:"]],
+      workspace_contains: [{ path: "CODING_STANDARDS.md", needle: "timingSafeEqual" }],
+      workspace_lacks: [
+        { path: "CODING_STANDARDS.md", needle: "wraps its body in try/catch" },
+        { path: ".compound-engineering/config.yaml" },
+      ],
+    },
+  ),
+  setupUnattendedRow(
+    "unattended-intent-refresh-publishes",
+    "A scheduled job that says nobody is watching is unattended without the token, so it must not stop at an offer.",
+    `This is our weekly scheduled job and nobody reads this session; the only output anyone looks at is what it publishes. Use the ce-setup skill to refresh our coding standards. ${SETUP_UNATTENDED_HISTORY}`,
+    {
+      committed_must: ["CODING_STANDARDS.md"],
+      must_include: ["ce-setup/refresh-"],
+      must_include_any: [["Setup complete:", "Setup skipped:"]],
+      workspace_contains: [{ path: "CODING_STANDARDS.md", needle: "timingSafeEqual" }],
+      workspace_lacks: [
+        { path: "CODING_STANDARDS.md", needle: "wraps its body in try/catch" },
+        { path: ".compound-engineering/config.yaml" },
+      ],
+    },
+  ),
+  setupUnattendedRow(
+    "automatically-is-still-attended",
+    "'Automatically' says when setup runs, not that nobody can answer, so the refresh still previews and writes nothing unapproved.",
+    `Use the ce-setup skill to automatically refresh our coding standards. ${SETUP_UNATTENDED_HISTORY} Nobody answers questions in this session, so treat any question you would ask as unanswered.`,
+    {
+      shim_log_must_not: ["handoff ce-commit-push-pr", "handoff ce-commit", "git push", "pr create", "pr merge"],
+      workspace_unchanged: true,
+      no_new_commits: true,
+    },
+    "setup-standards-refresh",
+    false,
+  ),
+  setupUnattendedRow(
+    "unattended-bare-run-reports-person-choices",
+    "A bare unattended run applies only what a reviewer can judge from the PR. Creating config.yaml and adding instruction-file directives are a person's choice, and review docs were not asked for.",
+    "Use the ce-setup skill with these arguments: mode:non-interactive.",
+    {
+      workspace_lacks: [
+        { path: ".compound-engineering/config.yaml" },
+        { path: "AGENTS.md", needle: "automatically invoke the `ce-compound` skill" },
+        { path: "CODING_STANDARDS.md" },
+      ],
+    },
+    "setup-instructions-gap",
+  ),
+]
 
 /** Cheap read-only cells that pin a real decision. Live mutation/delegation is not in this set. */
 export const WAVE1 = [
@@ -5524,6 +5611,99 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     },
   },
   {
+    id: "ce-doc-review/survival-breaking-json-rename",
+    baseline_ref: DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-contract-rename`,
+    timeout_secs: 1800,
+    why: "Survival of a non-money defect: renaming a documented --json field breaks every existing script that reads `done`, and the plan has no compatibility path.",
+    pre_contract: "On main after #2016 (94d707bb), 3 trials: Claude 3/3, Codex 3/3.",
+    task: docReviewFindingsTask("docs/plans/2026-11-01-013-refactor-rename-done-field-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [["break", "consumer", "script", "backward", "compat", "deprecat", "downstream", "existing user"]],
+    },
+  },
+  {
+    id: "ce-doc-review/survival-unrequested-streak",
+    baseline_ref: DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-unmade-choice`,
+    timeout_secs: 1800,
+    why: "Survival of a non-money defect: the streak is a product behavior the requester never asked for.",
+    pre_contract: "On main after #2016 (94d707bb), 3 trials: Claude 3/3, Codex 3/3.",
+    task: docReviewFindingsTask("docs/plans/2026-11-01-012-feat-tasks-stats-command-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [["streak"], ["request", "asked", "scope", "#57", "habit"]],
+    },
+  },
+  {
+    id: "ce-doc-review/survival-test-only-contradiction",
+    baseline_ref: DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-seeded-defect`,
+    timeout_secs: 1800,
+    why: "Survival of a non-money defect: a test-only plan whose unit edits production code.",
+    pre_contract: "On main after #2016 (94d707bb), 3 trials: Claude 3/3, Codex 3/3.",
+    task: docReviewFindingsTask("docs/plans/2026-11-01-011-fix-slug-test-coverage-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [
+        ["slug.ts", "slugify", "trim", "u1", "test-only contradiction"],
+        ["ktd1", "r2", "production code", "production edit", "test-only", "no edits under"],
+      ],
+    },
+  },
+  {
+    id: "ce-doc-review/survival-90-day-token",
+    baseline_ref: DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-unstated-session`,
+    timeout_secs: 1800,
+    why: "Security control: a stateless 90-day token cannot be revoked, so a stolen one works for three months.",
+    pre_contract: "Known Codex gap. On main after #2016 (94d707bb), 3 trials: Claude 3/3, Codex 0/3, with every Codex reviewer returning empty. Any fix needs a quiet guard where a plan states the relaxation's tradeoff and gets no finding.",
+    task: docReviewFindingsTask("docs/plans/2026-11-01-008-feat-longer-remember-me-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [["revoc", "revok", "stolen", "theft", "invalidat", "log out", "logout", "sign out", "hijack", "compromise"]],
+    },
+  },
+  {
+    id: "ce-doc-review/survival-other-users-bookings",
+    baseline_ref: DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-escalation`,
+    timeout_secs: 1800,
+    why: "Security control: recentBookings has no user filter, so the dashboard shows other customers' bookings.",
+    pre_contract: "On main after #2016 (94d707bb), 3 trials: Claude 3/3, Codex 3/3.",
+    task: docReviewFindingsTask("docs/plans/2026-11-01-009-feat-recent-bookings-card-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [["user_id", "cross-user", "ownership", "other customer", "other user", "every user", "all users", "any user", "leak", "privacy", "unscoped", "not scoped", "tenant"]],
+    },
+  },
+  {
     id: "ce-code-review/newly-exposed-existing-bug-is-primary",
     baseline_ref: CODE_REVIEW_PRE_EXISTING_BASE_REF,
     skill: "ce-code-review",
@@ -6043,12 +6223,35 @@ Units:
       actions: "none",
     },
   },
+  {
+    id: "ce-work/return-to-caller-implements-and-returns",
+    baseline_ref: WORK_RETURN_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/implementation-ready-plan`,
+    timeout_secs: 900,
+    why: "The read-only return row blocks at workspace setup, so it never reaches the return step. This row implements a one-unit plan and returns, which is where the re-read and the native route fields cost tokens.",
+    pre_contract:
+      "mode:return-to-caller implements, verifies, commits each unit, and ends with the structured return, without opening a PR.",
+    task: `mode:return-to-caller docs/plans/widget-plan.md`,
+    grade: {
+      files_read_post: ["references/return-to-caller.md"],
+      must_include: ["standalone_shipping_skipped"],
+      must_exclude: ["gh pr create"],
+      committed_must: ["src/quiet.js"],
+    },
+  },
   ...[
     {
       id: "chained-units-run-inline",
       plan: "chained-plan.md",
       declared: { U1: "inline", U2: "inline", U3: "inline" },
-      why: "Units the dependency graph chains gain no wall-clock time from a worker; a fresh worker per unit only spends tokens.",
+      read: "references/execution-engines.md",
+      why: "Units the dependency graph chains gain no wall-clock time from a worker; a fresh worker per unit only spends tokens. A chain decides inline from SKILL.md without loading the strategy reference.",
     },
     {
       id: "independent-units-run-as-wave",
@@ -6062,7 +6265,7 @@ Units:
       declared: { U1: "parallel-wave", U2: "parallel-wave", U3: "inline" },
       why: "Independent units still run as a wave; only the unit that depends on both runs inline.",
     },
-  ].map(({ id, plan, why, declared }): Scenario => ({
+  ].map(({ id, plan, why, declared, read = "references/execution-strategy.md" }): Scenario => ({
     id: `ce-work/${id}`,
     baseline_ref: WORK_ENGINES_BASE_REF,
     skill: "ce-work",
@@ -6076,7 +6279,7 @@ Units:
       "Native execution prefers subagents for any structured multi-unit plan; independent dependency layers dispatch in parallel, and units the graph chains run as serial subagents.",
     task: `Use ce-work on docs/plans/${plan}. The execution engine is native and this harness has a subagent mechanism with no worktree isolation. Resolve only how each implementation unit will run, then stop before any branch change, edit, dispatch, or commit. Output exactly one line per unit in the form U1: <schedule>, where <schedule> is one of inline, serial-subagent, or parallel-wave, then one line of reasoning.`,
     grade: {
-      files_read_post: ["references/execution-strategy.md"],
+      files_read_post: [read],
       declared,
       actions: "none",
       delegates: "none",
@@ -6588,6 +6791,53 @@ Use "Correct widget limit" as the description in the subject and any required bo
         { path: ".cursor/BUGBOT.md", needle: "REVIEW.md" },
         { path: "REVIEW.md", needle: "@CODING_STANDARDS.md" },
       ],
+    },
+  },
+  ...SETUP_UNATTENDED_ROWS,
+  {
+    id: "ce-compound/standards-request-routes-to-setup",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-setup"],
+    fixture: `${FIX}/setup-standards-refresh`,
+    timeout_secs: 900,
+    why: "Maintaining the standards as a whole is ce-setup's job; an attended ce-compound asked for it hands off with `standards` instead of writing a learning.",
+    pre_contract: "A qualifying lesson becomes one learning; anything else writes nothing.",
+    task: `Use the ce-compound skill to bring our coding standards up to date with what reviewers keep flagging. ${SETUP_UNATTENDED_HISTORY}`,
+    grade: {
+      shim_log_must: ["handoff ce-setup", "standards"],
+      shim_log_must_not: ["git push", "pr create", "pr merge"],
+      no_new_commits: true,
+      workspace_unchanged: true,
+    },
+  },
+  {
+    id: "ce-compound/unattended-standards-words-stay-capture",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-setup"],
+    fixture: `${FIX}/setup-standards-refresh`,
+    timeout_secs: 900,
+    why: "A non-interactive run without mode:refresh is always capture, so standards words in its context never hand off to ce-setup.",
+    pre_contract: "A non-interactive run without mode:refresh is always capture.",
+    task: `Use the ce-compound skill with these arguments: mode:non-interactive update the coding standards. ${COMPOUND_REPORT}`,
+    grade: {
+      shim_log_must_not: ["handoff ce-setup", "git push", "pr create", "pr merge"],
+      result_must_include: ["Documentation"],
+      no_new_commits: true,
+      workspace_unchanged: true,
     },
   },
   {
